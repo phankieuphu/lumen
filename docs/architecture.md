@@ -45,6 +45,34 @@ engine-side cancel (`pg_cancel` request, `KILL QUERY <id>`, SQLite interrupt).
   the result was truncated.
 - The audit chain is appended under one mutex; reads (verify, export) stream.
 
+## Frontend
+
+`ui/frontend` is React + TypeScript built with Vite; the shell embeds `dist/`.
+
+| Path | Job |
+| --- | --- |
+| `src/api` | DTO types mirroring `internal/app/dto.go`, the `Backend` interface, Wails bindings, dev mock |
+| `src/lib` | Pure helpers: `ResultStore`, grid layout math, formatting (unit-tested) |
+| `src/hooks` | `useAsync`, `usePaged` (keyset paging), `useQueryRunner` (run / cancel / confirm) |
+| `src/components` | `VirtualGrid` and the grids built on it, `SqlEditor` (CodeMirror 6), shared UI |
+| `src/screens` | Connections, query, history, audit log |
+
+The UI calls `app.App` methods through `Call.ByName` and receives rows as
+`query:page` events. `npm run dev:mock` (or `make ui-dev`) runs it in a
+browser on an in-memory backend that is left out of production builds.
+
+Rules the UI follows:
+
+- Rows live in a `ResultStore`, outside React state: a page is appended
+  without copying earlier rows, and the grid re-renders at most once per
+  animation frame however fast pages arrive.
+- Every list is a `VirtualGrid`: only rows in view are in the DOM, so cost
+  follows the window height, not the result size. History and audit load
+  further pages when the end scrolls into view, capped at 10 000 items.
+- Editor text stays in CodeMirror; typing never re-renders React.
+- Production writes are confirmed in the UI and re-sent with `confirmWrite`;
+  the backend stays the enforcer.
+
 ## Security rules
 
 See [conventions.md §6](conventions.md#6-security).
