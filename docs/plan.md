@@ -69,13 +69,13 @@ Tick tasks off as they are done; each list ends with its phase gate.
 ### Phase 1 · Core client + audit log
 
 - [ ] Repo, Go module, Wails v3 + React skeleton, CI that builds on three systems
-- [ ] `store`: local SQLite file, numbered migrations, `settings` and `app_sessions`
-- [ ] `driver` interfaces and PostgreSQL driver (`pgx`)
-- [ ] MySQL and SQLite drivers
-- [ ] `conn`: connection manager, pools, OS keychain, environment tag, read-only mode
-- [ ] `query`: run, cancel by request ID, stream rows in pages as events
-- [ ] Statement classifier (read, write, schema) used by read-only mode and audit
-- [ ] `audit`: append-only writes from the query path, hash chain, CSV/JSON export
+- [x] `store`: local SQLite file, numbered migrations, `settings` and `app_sessions`
+- [x] `driver` interfaces and PostgreSQL driver (`pgx`)
+- [x] MySQL and SQLite drivers
+- [x] `conn`: connection manager, pools, OS keychain, environment tag, read-only mode
+- [x] `query`: run, cancel by request ID, stream rows in pages as events
+- [x] Statement classifier (read, write, schema) used by read-only mode and audit
+- [x] `audit`: append-only writes from the query path, hash chain, CSV/JSON export
 - [ ] UI: connection list and form, editor (CodeMirror 6), virtualized result grid, query history
 - [ ] UI: audit log screen
 - [ ] Gate: query and cancel on all three databases; writes appear in the audit log
