@@ -25,6 +25,10 @@ const (
 var (
 	ErrUnknownDialect = errors.New("driver: unknown dialect")
 	ErrClosed         = errors.New("driver: connection closed")
+	// ErrMultipleStatements is returned when one call carries more than one
+	// statement. Engines reject these so a single request cannot smuggle a
+	// second statement past the classifier.
+	ErrMultipleStatements = errors.New("driver: only one statement per request is allowed")
 )
 
 // Driver opens connections for one engine.
