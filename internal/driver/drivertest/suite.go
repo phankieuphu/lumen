@@ -104,10 +104,11 @@ func Run(t *testing.T, e Engine) {
 		timeout := time.After(10 * time.Second)
 		for {
 			select {
-			case err := <-done:
-				if err == nil {
-					t.Fatal("sleep statement finished without error after cancel")
-				}
+			case <-done:
+				// Engines differ on whether a cancelled statement errors
+				// (MySQL's SLEEP returns 1 when killed). SleepSQL runs for
+				// far longer than this bound, so finishing early proves the
+				// cancel worked.
 				if time.Since(start) > 4*time.Second {
 					t.Fatalf("cancel took %v", time.Since(start))
 				}
