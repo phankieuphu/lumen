@@ -1,6 +1,4 @@
-# kiemdb
-
-> Working name. The final name is chosen in phase 6 (see [docs/plan.md](docs/plan.md)).
+# lumen
 
 A desktop SQL client for PostgreSQL, MySQL, and SQLite with an audit log, query
 explain/debug tools, an AI assistant, a slow-query advisor, and a lock monitor.

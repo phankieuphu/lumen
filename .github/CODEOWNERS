@@ -1,0 +1,8 @@
+# Default owner for everything
+*                     @phankieuphu
+
+# Security-sensitive areas need explicit review
+/internal/audit/      @phankieuphu
+/internal/secret/     @phankieuphu
+/internal/query/      @phankieuphu
+/.github/             @phankieuphu
