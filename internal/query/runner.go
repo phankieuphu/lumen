@@ -210,7 +210,7 @@ func (r *Runner) execute(ctx context.Context, c driver.Conn, run *running, req R
 	if err != nil {
 		return err
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	run.mu.Lock()
 	run.session = s
 	run.mu.Unlock()

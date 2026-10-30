@@ -63,10 +63,12 @@ func (Driver) Open(ctx context.Context, cfg driver.Config) (driver.Conn, error) 
 				return nil, fmt.Errorf("connection id: %w", err)
 			}
 			// id comes from the server as an integer; formatting it cannot inject SQL.
-			kill := "KILL QUERY " + strconv.FormatUint(id, 10)
+			kill := "KILL QUERY " + strconv.FormatUint(id, 10) //nolint:gosec // integer, not user input
 			return func(ctx context.Context) error {
-				_, err := control.ExecContext(ctx, kill)
-				return err
+				if _, err := control.ExecContext(ctx, kill); err != nil {
+					return fmt.Errorf("kill query: %w", err)
+				}
+				return nil
 			}, nil
 		},
 		OnClose: control.Close,

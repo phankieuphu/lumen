@@ -164,7 +164,7 @@ func (r repo) list(ctx context.Context) ([]Profile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("conn: list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Profile
 	for rows.Next() {
 		p, err := scanProfile(rows)

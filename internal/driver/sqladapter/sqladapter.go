@@ -128,7 +128,7 @@ func (s *session) Query(ctx context.Context, q string, args ...any) (driver.Rows
 	}
 	cts, err := r.ColumnTypes()
 	if err != nil {
-		_ = r.Close()
+		_ = r.Close() //nolint:sqlclosecheck // error path; on success rows close via driver.Rows
 		s.end()
 		return nil, fmt.Errorf("%s: columns: %w", s.c.dialect, err)
 	}
@@ -204,7 +204,7 @@ func newRows(r *sql.Rows, cols []driver.Column, s *session) *rows {
 }
 
 func (r *rows) Columns() []driver.Column { return r.cols }
-func (r *rows) Next() bool              { return r.r.Next() }
+func (r *rows) Next() bool               { return r.r.Next() }
 
 func (r *rows) Values(dst []any) error {
 	if err := r.r.Scan(r.ptrs...); err != nil {

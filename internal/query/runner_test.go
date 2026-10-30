@@ -349,15 +349,19 @@ func BenchmarkRunStream(b *testing.B) {
 	defer st.Close()
 	m := conn.NewManager(st, &secret.Memory{})
 	defer m.CloseAll()
-	p, err := m.Create(b.Context(), conn.Profile{Name: "b", Dialect: driver.SQLite,
-		Database: filepath.Join(b.TempDir(), "b.db")}, "")
+	p, err := m.Create(b.Context(), conn.Profile{
+		Name: "b", Dialect: driver.SQLite,
+		Database: filepath.Join(b.TempDir(), "b.db"),
+	}, "")
 	if err != nil {
 		b.Fatal(err)
 	}
 	r := NewRunner(m, audit.New(st), nil, nil)
-	for i, q := range []string{"CREATE TABLE t (id INTEGER, name TEXT, v REAL)",
+	for i, q := range []string{
+		"CREATE TABLE t (id INTEGER, name TEXT, v REAL)",
 		`INSERT INTO t WITH RECURSIVE s(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM s WHERE i < 10000)
-		 SELECT i, 'name' || i, i * 1.5 FROM s`} {
+		 SELECT i, 'name' || i, i * 1.5 FROM s`,
+	} {
 		if _, err := r.Run(b.Context(), Request{ID: fmt.Sprint("seed", i), ConnID: p.ID, SQL: q}, nil); err != nil {
 			b.Fatal(err)
 		}

@@ -70,7 +70,7 @@ func (h *History) List(ctx context.Context, connID string, beforeID int64, limit
 	if err != nil {
 		return nil, fmt.Errorf("query: history list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]HistoryEntry, 0, min(limit, 64))
 	for rows.Next() {
 		var (

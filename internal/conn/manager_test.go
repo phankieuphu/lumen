@@ -172,8 +172,10 @@ func TestUpdateReopensPool(t *testing.T) {
 func TestGetFailureIsRetried(t *testing.T) {
 	m, _ := newManager(t)
 	ctx := t.Context()
-	p, err := m.Create(ctx, Profile{Name: "missing", Dialect: driver.SQLite,
-		Database: filepath.Join(t.TempDir(), "nope", "x.db"), ReadOnly: true}, "")
+	p, err := m.Create(ctx, Profile{
+		Name: "missing", Dialect: driver.SQLite,
+		Database: filepath.Join(t.TempDir(), "nope", "x.db"), ReadOnly: true,
+	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

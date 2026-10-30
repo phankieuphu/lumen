@@ -119,7 +119,9 @@ func (s *Scanner) Next() (Token, bool) {
 		s.scanWhile(isIdentByte)
 		return s.tok(Param, start), true
 	case isDigit(c) || (c == '.' && isDigit(s.peek(1))):
-		s.scanWhile(func(b byte) bool { return isDigit(b) || b == '.' || b == 'e' || b == 'E' || b == '_' || b == 'x' || b == 'X' })
+		s.scanWhile(func(b byte) bool {
+			return isDigit(b) || b == '.' || b == 'e' || b == 'E' || b == '_' || b == 'x' || b == 'X'
+		})
 		return s.tok(Number, start), true
 	case isIdentStart(s.peekRune(0)):
 		s.scanIdent()
@@ -241,7 +243,7 @@ func (s *Scanner) scanUntil(end byte) {
 // scanDollarQuote consumes $tag$...$tag$ and reports whether pos started one.
 func (s *Scanner) scanDollarQuote() bool {
 	i := s.pos + 1
-	for i < len(s.src) && isIdentByte(s.src[i]) && !(i == s.pos+1 && isDigit(s.src[i])) {
+	for i < len(s.src) && isIdentByte(s.src[i]) && (i != s.pos+1 || !isDigit(s.src[i])) {
 		i++
 	}
 	if i >= len(s.src) || s.src[i] != '$' {
@@ -259,7 +261,7 @@ func (s *Scanner) scanDollarQuote() bool {
 func (s *Scanner) scanIdent() {
 	for s.pos < len(s.src) {
 		r, size := utf8.DecodeRuneInString(s.src[s.pos:])
-		if !(r == '_' || r == '$' || unicode.IsLetter(r) || unicode.IsDigit(r)) {
+		if r != '_' && r != '$' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
 			return
 		}
 		s.pos += size
@@ -272,8 +274,11 @@ func (s *Scanner) scanWhile(f func(byte) bool) {
 	}
 }
 
-func isDigit(b byte) bool     { return b >= '0' && b <= '9' }
-func isIdentByte(b byte) bool { return b == '_' || isDigit(b) || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' }
+func isDigit(b byte) bool { return b >= '0' && b <= '9' }
+func isIdentByte(b byte) bool {
+	return b == '_' || isDigit(b) || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+}
+
 func isIdentStart(r rune) bool {
 	return r == '_' || unicode.IsLetter(r)
 }

@@ -204,7 +204,7 @@ func (m *Manager) CloseAll() error {
 		ids = append(ids, id)
 	}
 	m.mu.Unlock()
-	var errs []error
+	errs := make([]error, 0, len(ids))
 	for _, id := range ids {
 		errs = append(errs, m.Close(id))
 	}

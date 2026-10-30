@@ -79,8 +79,10 @@ func pgProfile(t *testing.T, dsn string) (conn.Profile, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return conn.Profile{Name: "pg", Dialect: driver.Postgres, Host: pc.Host, Port: int(pc.Port),
-		User: pc.User, Database: pc.Database, TLS: driver.TLSDisable}, pc.Password
+	return conn.Profile{
+		Name: "pg", Dialect: driver.Postgres, Host: pc.Host, Port: int(pc.Port),
+		User: pc.User, Database: pc.Database, TLS: driver.TLSDisable,
+	}, pc.Password
 }
 
 func mysqlProfile(t *testing.T, dsn string) (conn.Profile, string) {
@@ -90,6 +92,8 @@ func mysqlProfile(t *testing.T, dsn string) (conn.Profile, string) {
 	}
 	host, port, _ := net.SplitHostPort(mc.Addr)
 	p, _ := strconv.Atoi(port)
-	return conn.Profile{Name: "my", Dialect: driver.MySQL, Host: host, Port: p,
-		User: mc.User, Database: mc.DBName, TLS: driver.TLSDisable}, mc.Passwd
+	return conn.Profile{
+		Name: "my", Dialect: driver.MySQL, Host: host, Port: p,
+		User: mc.User, Database: mc.DBName, TLS: driver.TLSDisable,
+	}, mc.Passwd
 }

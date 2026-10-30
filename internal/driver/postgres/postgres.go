@@ -214,7 +214,7 @@ func newRows(r pgx.Rows, tm *pgtype.Map, running *atomic.Bool) *rows {
 }
 
 func (r *rows) Columns() []driver.Column { return r.cols }
-func (r *rows) Next() bool              { return r.r.Next() }
+func (r *rows) Next() bool               { return r.r.Next() }
 
 func (r *rows) Values(dst []any) error {
 	vals, err := r.r.Values()

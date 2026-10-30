@@ -43,7 +43,9 @@ linters:
   exclusions:
     rules:
       - path: _test\.go
-        linters: [gosec, wrapcheck, unparam]
+        linters: [gosec, wrapcheck, unparam, errcheck]
+      - path: internal/driver/drivertest/
+        linters: [contextcheck, errcheck]
 
 formatters:
   enable: [gofumpt, goimports]

@@ -64,17 +64,18 @@ func (l *Log) scan(ctx context.Context, f Filter, fn func(Entry) error) error {
 	q := `SELECT seq, at, conn_id, conn_name, dialect, env, kind, status, rows_affected, duration_ms,
 		sql_text, error, prev_hash, hash FROM audit_log`
 	if len(where) > 0 {
-		q += " WHERE " + strings.Join(where, " AND ") // fixed fragments only; values are bound
+		q += " WHERE " + strings.Join(where, " AND ") //nolint:gosec // fixed fragments only; values are bound
 	}
 	q += " ORDER BY seq"
 	if f.Limit > 0 {
-		q += " LIMIT " + strconv.Itoa(f.Limit)
+		q += " LIMIT ?"
+		args = append(args, f.Limit)
 	}
 	rows, err := l.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("audit: query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var (
 			e      Entry
@@ -110,8 +111,10 @@ const (
 	JSON Format = "json"
 )
 
-var csvHeader = []string{"seq", "at", "conn_id", "conn_name", "dialect", "env", "kind", "status",
-	"rows_affected", "duration_ms", "sql", "error", "prev_hash", "hash"}
+var csvHeader = []string{
+	"seq", "at", "conn_id", "conn_name", "dialect", "env", "kind", "status",
+	"rows_affected", "duration_ms", "sql", "error", "prev_hash", "hash",
+}
 
 // Export streams matching entries to w. JSON is a single array; CSV has a
 // header row. Hashes are hex-encoded.
@@ -187,7 +190,7 @@ func (l *Log) exportJSON(ctx context.Context, w io.Writer, f Filter) error {
 	err := l.scan(ctx, f, func(e Entry) error {
 		if !first {
 			if _, err := io.WriteString(w, ","); err != nil {
-				return err
+				return fmt.Errorf("audit: export: %w", err)
 			}
 		}
 		first = false

@@ -149,7 +149,7 @@ func classifyRead(toks []sqlscan.Token) (Kind, bool) {
 			return KindWrite, true
 		case t.Is("LOCK") && i+1 < len(toks) && toks[i+1].Is("IN"): // MySQL LOCK IN SHARE MODE
 			return KindWrite, true
-		case writeKeywords[t.Upper()] && t.Kind == sqlscan.Word && !(t.Is("REPLACE") && isCall(toks, i)):
+		case writeKeywords[t.Upper()] && t.Kind == sqlscan.Word && (!t.Is("REPLACE") || !isCall(toks, i)):
 			return KindWrite, true
 		case isSideEffectCall(toks, i):
 			return KindWrite, true
@@ -172,7 +172,7 @@ func classifyWith(toks []sqlscan.Token) (Kind, bool) {
 		case t.Kind == sqlscan.Punct && t.Text == ")":
 			depth--
 		case t.Kind != sqlscan.Word:
-		case writeKeywords[t.Upper()] && !(t.Is("REPLACE") && isCall(toks, i)):
+		case writeKeywords[t.Upper()] && (!t.Is("REPLACE") || !isCall(toks, i)):
 			kind = KindWrite
 		case t.Is("INTO") && depth == 0 && main == "SELECT":
 			kind = KindWrite

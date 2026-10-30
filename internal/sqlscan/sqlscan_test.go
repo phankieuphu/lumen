@@ -21,8 +21,10 @@ func TestSplit(t *testing.T) {
 		{"pg_backslash_is_literal", Postgres, `SELECT 'a\'; DELETE FROM t`, []string{`SELECT 'a\'`, "DELETE FROM t"}},
 		{"pg_escape_string", Postgres, `SELECT E'a\';b'; SELECT 2`, []string{`SELECT E'a\';b'`, "SELECT 2"}},
 		{"mysql_backslash_escapes", MySQL, `SELECT 'a\';b'; SELECT 2`, []string{`SELECT 'a\';b'`, "SELECT 2"}},
-		{"dollar_quote", Postgres, "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1; $$ LANGUAGE sql; SELECT 2",
-			[]string{"CREATE FUNCTION f() RETURNS int AS $$ SELECT 1; $$ LANGUAGE sql", "SELECT 2"}},
+		{
+			"dollar_quote", Postgres, "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1; $$ LANGUAGE sql; SELECT 2",
+			[]string{"CREATE FUNCTION f() RETURNS int AS $$ SELECT 1; $$ LANGUAGE sql", "SELECT 2"},
+		},
 		{"tagged_dollar_quote", Postgres, "SELECT $a$ ; $b$ ; $a$; SELECT 2", []string{"SELECT $a$ ; $b$ ; $a$", "SELECT 2"}},
 		{"param_is_not_dollar_quote", Postgres, "SELECT $1; SELECT $2", []string{"SELECT $1", "SELECT $2"}},
 		{"line_comment", Postgres, "SELECT 1 -- ; not a split\n; SELECT 2", []string{"SELECT 1 -- ; not a split", "SELECT 2"}},
@@ -30,12 +32,16 @@ func TestSplit(t *testing.T) {
 		{"mysql_hash_comment", MySQL, "SELECT 1 # ;\n; SELECT 2", []string{"SELECT 1 # ;", "SELECT 2"}},
 		{"quoted_ident", Postgres, `SELECT ";" FROM t; SELECT 2`, []string{`SELECT ";" FROM t`, "SELECT 2"}},
 		{"backtick_ident", MySQL, "SELECT `;` FROM t; SELECT 2", []string{"SELECT `;` FROM t", "SELECT 2"}},
-		{"sqlite_trigger_body", SQLite,
+		{
+			"sqlite_trigger_body", SQLite,
 			"CREATE TRIGGER tr AFTER INSERT ON t BEGIN UPDATE u SET n = n + 1; DELETE FROM v; END; SELECT 1",
-			[]string{"CREATE TRIGGER tr AFTER INSERT ON t BEGIN UPDATE u SET n = n + 1; DELETE FROM v; END", "SELECT 1"}},
-		{"mysql_procedure_with_if", MySQL,
+			[]string{"CREATE TRIGGER tr AFTER INSERT ON t BEGIN UPDATE u SET n = n + 1; DELETE FROM v; END", "SELECT 1"},
+		},
+		{
+			"mysql_procedure_with_if", MySQL,
 			"CREATE PROCEDURE p() BEGIN IF 1 THEN SELECT 1; END IF; SELECT CASE WHEN 1 THEN 2 END; END; SELECT 3",
-			[]string{"CREATE PROCEDURE p() BEGIN IF 1 THEN SELECT 1; END IF; SELECT CASE WHEN 1 THEN 2 END; END", "SELECT 3"}},
+			[]string{"CREATE PROCEDURE p() BEGIN IF 1 THEN SELECT 1; END IF; SELECT CASE WHEN 1 THEN 2 END; END", "SELECT 3"},
+		},
 		{"transaction_begin_splits", Postgres, "BEGIN; DELETE FROM t; COMMIT", []string{"BEGIN", "DELETE FROM t", "COMMIT"}},
 		{"unterminated_string", Postgres, "SELECT 'abc; DELETE", []string{"SELECT 'abc; DELETE"}},
 	}
