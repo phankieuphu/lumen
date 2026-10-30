@@ -1,0 +1,33 @@
+# Binaries
+/bin/
+/build/bin/
+*.exe
+*.test
+*.out
+
+# Go
+/vendor/
+coverage.*
+go.work
+go.work.sum
+
+# Local data
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+
+# Frontend
+node_modules/
+ui/frontend/dist/
+
+# Editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
