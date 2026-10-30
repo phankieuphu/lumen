@@ -1,0 +1,37 @@
+# Test databases for integration tests. Credentials are for local use only.
+name: kiemdb-dev
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: kiemdb
+      POSTGRES_PASSWORD: kiemdb
+      POSTGRES_DB: kiemdb
+    ports: ["127.0.0.1:5432:5432"]
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kiemdb"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: kiemdb
+      MYSQL_DATABASE: kiemdb
+      MYSQL_USER: kiemdb
+      MYSQL_PASSWORD: kiemdb
+    ports: ["127.0.0.1:3306:3306"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-pkiemdb"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+    volumes: [mysqldata:/var/lib/mysql]
+
+volumes:
+  pgdata:
+  mysqldata:
