@@ -9,6 +9,7 @@ export interface ItemColumn<T> extends Omit<GridColumn, "hint"> {
 interface Props<T> {
   columns: readonly ItemColumn<T>[];
   items: readonly T[];
+  rowHeight?: number;
   selected?: number;
   onSelect?: (index: number) => void;
   onEndReached?: () => void;

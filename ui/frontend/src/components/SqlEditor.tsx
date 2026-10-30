@@ -5,6 +5,7 @@ import { basicSetup } from "codemirror";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 
 import type { Dialect } from "../api";
+import { editorTheme } from "./editorTheme";
 
 const dialects: Record<Dialect, SQLDialect> = { postgres: PostgreSQL, mysql: MySQL, sqlite: SQLite };
 
@@ -47,7 +48,7 @@ export function SqlEditor({ dialect, onRun, ref }: Props) {
           ),
           basicSetup,
           language.current.of(sql({ dialect: dialects[dialect], upperCaseKeywords: true })),
-          EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { fontFamily: "var(--mono)" } }),
+          editorTheme,
         ],
       }),
     });

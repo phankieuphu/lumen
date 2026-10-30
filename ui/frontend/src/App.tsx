@@ -1,22 +1,21 @@
 import { useCallback, useRef, useState } from "react";
 
 import { type Connection, useBackend } from "./api";
+import { Icon, type IconName } from "./components/icons";
 import type { EditorHandle } from "./components/SqlEditor";
 import { ErrorText } from "./components/ui";
 import { useAsync } from "./hooks/useAsync";
 import { AuditScreen } from "./screens/AuditScreen";
 import { ConnectionForm } from "./screens/ConnectionForm";
 import { ConnectionList } from "./screens/ConnectionList";
-import { HistoryScreen } from "./screens/HistoryScreen";
 import { QueryScreen } from "./screens/QueryScreen";
 
-type Tab = "query" | "history" | "audit";
-type FormState = { conn?: Connection } | null;
+type View = "query" | "connections" | "audit";
 
-const tabs: { id: Tab; label: string; needsConn: boolean }[] = [
-  { id: "query", label: "Query", needsConn: true },
-  { id: "history", label: "History", needsConn: true },
-  { id: "audit", label: "Audit log", needsConn: false },
+const views: { id: View; label: string; icon: IconName }[] = [
+  { id: "query", label: "Query editor", icon: "code" },
+  { id: "connections", label: "Connections", icon: "plug" },
+  { id: "audit", label: "Audit log", icon: "clipboard" },
 ];
 
 export function App() {
@@ -24,80 +23,111 @@ export function App() {
   const conns = useAsync(() => backend.listConnections(), [backend]);
   const connections = conns.data ?? [];
   const [selectedId, setSelectedId] = useState<string>();
-  const [tab, setTab] = useState<Tab>("query");
-  const [form, setForm] = useState<FormState>(null);
-  const [historyVersion, setHistoryVersion] = useState(0);
+  const [view, setView] = useState<View>("query");
+  // The connections view edits the selected profile, or a new one.
+  const [creating, setCreating] = useState(false);
   const editor = useRef<EditorHandle>(null);
 
   const conn = connections.find((c) => c.id === selectedId) ?? connections[0];
-  const bumpHistory = useCallback(() => setHistoryVersion((v) => v + 1), []);
 
-  const openInEditor = useCallback((sql: string) => {
-    setTab("query");
+  const openSQL = useCallback((sql: string) => {
+    setView("query");
     editor.current?.setText(sql);
     editor.current?.focus();
   }, []);
 
+  const openInConn = useCallback(
+    (connId: string, sql: string) => {
+      setSelectedId(connId);
+      openSQL(sql);
+    },
+    [openSQL],
+  );
+
+  const select = (id: string) => {
+    setSelectedId(id);
+    setCreating(false);
+  };
+
+  const startNew = () => {
+    setCreating(true);
+    setView("connections");
+  };
+
   const saved = (c: Connection) => {
-    setForm(null);
+    setCreating(false);
     setSelectedId(c.id);
     conns.reload();
   };
 
+  const editing = creating ? undefined : conn;
   return (
     <div className="app">
-      <ConnectionList
-        connections={connections}
-        selectedId={conn?.id}
-        onSelect={(id) => {
-          setSelectedId(id);
-          setForm(null);
-        }}
-        onNew={() => setForm({})}
-        onEdit={(c) => setForm({ conn: c })}
-        onDeleted={conns.reload}
-      />
+      <nav className="rail" aria-label="Main">
+        <div className="logo" aria-hidden="true">
+          <Icon name="database" size={18} />
+        </div>
+        {views.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            aria-label={v.label}
+            title={v.label}
+            aria-current={view === v.id ? "page" : undefined}
+            onClick={() => setView(v.id)}
+          >
+            <Icon name={v.icon} size={20} />
+          </button>
+        ))}
+      </nav>
+
+      <ConnectionList connections={connections} selectedId={creating ? undefined : conn?.id} onSelect={select} onNew={startNew} />
+
       <main className="main">
         <ErrorText error={conns.error} />
-        {/* An overlay, so the query screen underneath keeps its state. */}
-        {form && (
-          <div className="overlay">
-            <ConnectionForm key={form.conn?.id ?? "new"} conn={form.conn} onSaved={saved} onCancel={() => setForm(null)} />
-          </div>
-        )}
-        <div className="tabs" role="tablist">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              disabled={t.needsConn && !conn}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
+
+        {/* Stays mounted so the editor text and the last result survive view switches. */}
+        <div className="view" hidden={view !== "query"}>
+          {conn ? (
+            <QueryScreen conn={conn} editorRef={editor} onOpenSQL={openSQL} />
+          ) : (
+            !conns.loading && (
+              <div className="page">
+                <p className="muted">Add a connection to start querying.</p>
+                <div>
+                  <button type="button" className="primary" onClick={startNew}>
+                    <Icon name="plus" size={14} /> Add connection
+                  </button>
+                </div>
+              </div>
+            )
+          )}
         </div>
-        {/* The query screen stays mounted so the editor text and the last result survive tab switches. */}
-        {conn && (
-          <div className="tab-panel" hidden={tab !== "query"}>
-            <QueryScreen conn={conn} editorRef={editor} onRan={bumpHistory} />
+
+        {view === "connections" && (
+          <div className="page">
+            {editing || creating ? (
+              <ConnectionForm
+                key={editing?.id ?? "new"}
+                conn={editing}
+                onSaved={saved}
+                onDeleted={() => {
+                  setSelectedId(undefined);
+                  conns.reload();
+                }}
+                onOpen={(c) => {
+                  setSelectedId(c.id);
+                  setView("query");
+                }}
+                onCancel={() => setCreating(false)}
+              />
+            ) : (
+              <p className="muted">No connections yet. Use + to add one.</p>
+            )}
           </div>
         )}
-        {conn && tab === "history" && (
-          <div className="tab-panel">
-            <HistoryScreen connId={conn.id} refresh={historyVersion} onOpen={openInEditor} />
-          </div>
-        )}
-        {tab === "audit" && (
-          <div className="tab-panel">
-            <AuditScreen connections={connections} />
-          </div>
-        )}
-        {!conn && tab !== "audit" && !conns.loading && (
-          <p className="muted pad">Add a connection to start querying.</p>
-        )}
+
+        {view === "audit" && <AuditScreen connections={connections} onOpen={openInConn} />}
       </main>
     </div>
   );

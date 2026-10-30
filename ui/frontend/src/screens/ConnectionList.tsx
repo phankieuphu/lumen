@@ -1,78 +1,42 @@
-import { useState } from "react";
-
-import { type Connection, errorMessage, useBackend } from "../api";
-import { Confirm, EnvBadge, ErrorText } from "../components/ui";
+import type { Connection } from "../api";
+import { Icon } from "../components/icons";
+import { EnvBadge } from "../components/ui";
 
 interface Props {
   connections: readonly Connection[];
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   onNew: () => void;
-  onEdit: (c: Connection) => void;
-  onDeleted: () => void;
 }
 
-export function ConnectionList({ connections, selectedId, onSelect, onNew, onEdit, onDeleted }: Props) {
-  const backend = useBackend();
-  const [deleting, setDeleting] = useState<Connection>();
-  const [error, setError] = useState<string>();
-
-  const remove = async (c: Connection) => {
-    setDeleting(undefined);
-    try {
-      await backend.deleteConnection(c.id);
-      setError(undefined);
-      onDeleted();
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
+/** ConnectionList is the sidebar: pick the connection the views work on. */
+export function ConnectionList({ connections, selectedId, onSelect, onNew }: Props) {
   return (
     <nav className="sidebar" aria-label="Connections">
       <div className="sidebar-head">
-        <h2>Connections</h2>
-        <button type="button" onClick={onNew} title="New connection">
-          + New
+        <span className="eyebrow">Connections</span>
+        <button type="button" className="icon ghost" onClick={onNew} aria-label="Add connection">
+          <Icon name="plus" />
         </button>
       </div>
-      <ErrorText error={error} />
       {connections.length === 0 && <p className="muted pad">No connections yet.</p>}
       <ul className="conn-list">
         {connections.map((c) => (
-          <li key={c.id} className={c.id === selectedId ? "selected" : undefined}>
-            <button type="button" className="conn-main" onClick={() => onSelect(c.id)}>
-              <span className="conn-name">{c.name}</span>
-              <span className="conn-meta">
-                {c.dialect} · {c.dialect === "sqlite" ? c.database : `${c.host}${c.database ? `/${c.database}` : ""}`}
-              </span>
-            </button>
-            <span className="conn-tags">
+          <li key={c.id}>
+            <button
+              type="button"
+              className="conn-item"
+              aria-current={c.id === selectedId}
+              onClick={() => onSelect(c.id)}
+              title={`${c.dialect} · ${c.dialect === "sqlite" ? c.database : `${c.host}/${c.database}`}`}
+            >
+              <span className="name">{c.name}</span>
+              {c.readOnly && <Icon name="lock" size={13} label="Read-only" />}
               <EnvBadge env={c.env} />
-              {c.readOnly && <span className="badge">ro</span>}
-            </span>
-            <span className="conn-actions">
-              <button type="button" className="link" onClick={() => onEdit(c)}>
-                Edit
-              </button>
-              <button type="button" className="link danger" onClick={() => setDeleting(c)}>
-                Delete
-              </button>
-            </span>
+            </button>
           </li>
         ))}
       </ul>
-      {deleting && (
-        <Confirm
-          title="Delete connection"
-          confirmLabel="Delete"
-          danger
-          onConfirm={() => void remove(deleting)}
-          onCancel={() => setDeleting(undefined)}
-        >
-          Delete <strong>{deleting.name}</strong> and its stored password? Its audit entries are kept.
-        </Confirm>
-      )}
     </nav>
   );
 }

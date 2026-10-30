@@ -54,8 +54,12 @@ engine-side cancel (`pg_cancel` request, `KILL QUERY <id>`, SQLite interrupt).
 | `src/api` | DTO types mirroring `internal/app/dto.go`, the `Backend` interface, Wails bindings, dev mock |
 | `src/lib` | Pure helpers: `ResultStore`, grid layout math, formatting (unit-tested) |
 | `src/hooks` | `useAsync`, `usePaged` (keyset paging), `useQueryRunner` (run / cancel / confirm) |
-| `src/components` | `VirtualGrid` and the grids built on it, `SqlEditor` (CodeMirror 6), shared UI |
-| `src/screens` | Connections, query, history, audit log |
+| `src/components` | `VirtualGrid` and the grids built on it, `SqlEditor` (CodeMirror 6), icons, shared UI |
+| `src/screens` | Connection list and editor, query (results and history tabs), audit log |
+
+The look (dark palette, IBM Plex Sans/Mono, icon rail) follows the UI design
+canvas; colours are CSS variables in `styles.css`, and fonts are bundled so the
+app makes no network requests for them.
 
 The UI calls `app.App` methods through `Call.ByName` and receives rows as
 `query:page` events. `npm run dev:mock` (or `make ui-dev`) runs it in a
