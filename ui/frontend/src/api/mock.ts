@@ -6,7 +6,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
 
 const classify = (sql: string): Kind => {
-  const word = /^\s*(\w+)/.exec(sql)?.[1]?.toLowerCase() ?? "";
+  const body = sql.replace(/^(\s*--[^\n]*\n|\s*\/\*[\s\S]*?\*\/)*/, "");
+  const word = /^\s*(\w+)/.exec(body)?.[1]?.toLowerCase() ?? "";
   if (["select", "with", "show", "explain", "values"].includes(word)) return "read";
   if (["create", "alter", "drop", "grant", "revoke", "truncate"].includes(word)) return "schema";
   if (["begin", "commit", "rollback", "set"].includes(word)) return "session";
@@ -30,7 +31,9 @@ export function createMockBackend(): Backend {
   add({ name: "orders prod", dialect: "mysql", host: "db.internal", port: 3306, user: "app", database: "orders", tls: "require", env: "prod", readOnly: false, maxConns: 4 });
 
   const record = (connId: string, sql: string, sum: Summary) => {
-    history.unshift({ id: history.length + 1, connId, startedAt: now(), durationMs: sum.durationMs, kind: sum.kind, status: sum.status, rowCount: sum.rowCount, sql, error: sum.error });
+    // Like query.Runner: writes record rows changed in rowCount.
+    const rowCount = sum.kind !== "read" && sum.rowsAffected > 0 ? sum.rowsAffected : sum.rowCount;
+    history.unshift({ id: history.length + 1, connId, startedAt: now(), durationMs: sum.durationMs, kind: sum.kind, status: sum.status, rowCount, sql, error: sum.error });
     if (sum.kind === "write" || sum.kind === "schema") {
       const c = conns.find((x) => x.id === connId);
       audit.push({ seq: audit.length + 1, at: now(), connId, connName: c?.name ?? "", dialect: c?.dialect ?? "", env: c?.env ?? "", kind: sum.kind, status: sum.status, rowsAffected: sum.rowsAffected, durationMs: sum.durationMs, sql, error: sum.error, hash: Math.random().toString(16).slice(2).padEnd(64, "0") });

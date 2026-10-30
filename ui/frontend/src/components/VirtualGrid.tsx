@@ -9,6 +9,8 @@ export interface GridColumn {
   /** Shown under the title, e.g. the column type. */
   hint?: string;
   align?: "start" | "end";
+  /** Take up spare width; `width` is then the minimum. */
+  grow?: boolean;
 }
 
 interface Props {
@@ -57,8 +59,9 @@ export function VirtualGrid({ columns, rowCount, renderCell, version = 0, rowHei
     if (onEndReached && rowCount > 0 && end >= rowCount) onEndReached();
   }, [onEndReached, end, rowCount]);
 
-  const width = columns.reduce((w, c) => w + c.width, 0);
-  const template = columns.map((c) => `${c.width}px`).join(" ");
+  // Fill the scroller when there is room; scroll sideways when there is not.
+  const minWidth = columns.reduce((w, c) => w + c.width, 0);
+  const template = columns.map((c) => (c.grow ? `minmax(${c.width}px, 1fr)` : `${c.width}px`)).join(" ");
 
   const rows: ReactNode[] = [];
   for (let i = start; i < end; i++) {
@@ -80,7 +83,7 @@ export function VirtualGrid({ columns, rowCount, renderCell, version = 0, rowHei
 
   return (
     <div className="grid" ref={scroller} onScroll={onScroll} role="grid" aria-rowcount={rowCount}>
-      <div className="grid-head" style={{ gridTemplateColumns: template, width }} role="row">
+      <div className="grid-head" style={{ gridTemplateColumns: template, minWidth }} role="row">
         {columns.map((c) => (
           <div key={c.key} className="grid-cell grid-th" role="columnheader" title={c.hint ? `${c.title} (${c.hint})` : c.title}>
             <span>{c.title}</span>
@@ -91,7 +94,7 @@ export function VirtualGrid({ columns, rowCount, renderCell, version = 0, rowHei
       {rowCount === 0 ? (
         empty && <div className="grid-empty">{empty}</div>
       ) : (
-        <div className="grid-body" style={{ height: rowCount * rowHeight, width }}>
+        <div className="grid-body" style={{ height: rowCount * rowHeight, minWidth }}>
           {rows}
         </div>
       )}
@@ -115,7 +118,7 @@ interface RowProps {
 const GridRow = memo(function GridRow({ index, top, height, template, columns, renderCell, selected, onSelect }: RowProps) {
   return (
     <div
-      className={selected ? "grid-row selected" : "grid-row"}
+      className="grid-row"
       style={{ transform: `translateY(${top}px)`, height, gridTemplateColumns: template }}
       role="row"
       aria-rowindex={index + 1}
