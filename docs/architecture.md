@@ -12,6 +12,7 @@
 | `internal/audit` | Append-only, hash-chained log; verify; CSV/JSON export | `store` |
 | `internal/store` | Local SQLite file, embedded numbered migrations | — |
 | `internal/secret` | OS keychain (and in-memory store for tests) | — |
+| `internal/sqlscan` | Dialect-aware lexer and statement splitter | — |
 | `internal/driver` | `Driver`, `Conn`, `Session`, `Rows` interfaces; registry | — |
 | `internal/driver/{postgres,mysql,sqlite}` | Engine implementations | `driver` |
 
