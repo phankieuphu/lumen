@@ -5,7 +5,7 @@ GOBIN  ?= $(shell go env GOPATH)/bin
 export LUMEN_TEST_POSTGRES_DSN ?= postgres://lumen:lumen@localhost:5432/lumen?sslmode=disable
 export LUMEN_TEST_MYSQL_DSN    ?= lumen:lumen@tcp(localhost:3306)/lumen
 
-.PHONY: help build run test test-int bench cover lint fmt fmt-check vuln check tools db-up db-down
+.PHONY: help build run test test-int bench cover lint fmt fmt-check vuln check tools db-up db-down ui-dev ui-check
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-10s %s\n",$$1,$$2}'
@@ -42,6 +42,18 @@ vuln: ## Scan dependencies for known vulnerabilities
 	$(GOBIN)/govulncheck ./...
 
 check: fmt-check lint test vuln ## Everything CI runs except integration
+
+UI := ui/frontend
+
+$(UI)/node_modules: $(UI)/package-lock.json
+	cd $(UI) && npm ci
+	@touch $@
+
+ui-dev: $(UI)/node_modules ## Frontend dev server on a mock backend (no Go needed)
+	cd $(UI) && npm run dev:mock
+
+ui-check: $(UI)/node_modules ## Frontend typecheck, unit tests, and production build
+	cd $(UI) && npm run check
 
 tools: ## Install dev tools
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
