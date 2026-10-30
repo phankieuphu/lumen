@@ -1,0 +1,54 @@
+version: "2"
+
+run:
+  timeout: 5m
+  build-tags: [integration]
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - prealloc
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wrapcheck
+  settings:
+    gosec:
+      excludes:
+        - G104 # covered by errcheck
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: context-as-argument
+        - name: error-return
+        - name: error-naming
+        - name: receiver-naming
+        - name: var-naming
+    wrapcheck:
+      ignore-package-globs:
+        - github.com/phankieuphu/lumen/*
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec, wrapcheck, unparam, errcheck]
+      - path: internal/driver/drivertest/
+        linters: [contextcheck, errcheck]
+
+formatters:
+  enable: [gofumpt, goimports]
+  settings:
+    goimports:
+      local-prefixes: [github.com/phankieuphu/lumen]
