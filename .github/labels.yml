@@ -1,0 +1,17 @@
+# Sync with: gh label create --force <name> --color <color> --description <desc>
+# (see .github/README.md)
+- { name: "type: bug",          color: "d73a4a", description: "Something is broken" }
+- { name: "type: feature",      color: "a2eeef", description: "New capability" }
+- { name: "type: task",         color: "0e8a16", description: "Task from docs/plan.md" }
+- { name: "type: chore",        color: "ededed", description: "Tooling, deps, cleanup" }
+- { name: "type: security",     color: "b60205", description: "Security-related" }
+- { name: "type: performance",  color: "fbca04", description: "Speed or memory" }
+- { name: "status: triage",     color: "fef2c0", description: "Needs a first look" }
+- { name: "status: blocked",    color: "000000", description: "Waiting on something" }
+- { name: "phase: 1",           color: "c5def5", description: "Core client + audit log" }
+- { name: "phase: 2",           color: "c5def5", description: "Rule help + Explain + Debug" }
+- { name: "phase: 3",           color: "c5def5", description: "AI version 1" }
+- { name: "phase: 4",           color: "c5def5", description: "Slow-query advisor" }
+- { name: "phase: 5",           color: "c5def5", description: "Monitor + lock tree" }
+- { name: "phase: 6",           color: "c5def5", description: "Polish + first release" }
+- { name: "good first issue",   color: "7057ff", description: "Small and well-scoped" }

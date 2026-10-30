@@ -1,0 +1,38 @@
+name: Plan task
+description: A task from docs/plan.md
+title: "task: "
+labels: ["type: task"]
+body:
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options:
+        - "1. Core client + audit log"
+        - "2. Rule help + Explain + Debug"
+        - "3. AI version 1"
+        - "4. Slow-query advisor"
+        - "5. Monitor + lock tree"
+        - "6. Polish + first release"
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] Tests: ...
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Design notes
+      description: Packages touched, interfaces, security and performance considerations.
