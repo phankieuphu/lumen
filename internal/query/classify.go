@@ -73,7 +73,7 @@ func Classify(sql string, d driver.Dialect) Classification {
 }
 
 var (
-	readKeywords = set("SELECT", "VALUES", "TABLE", "SHOW", "DESCRIBE", "DESC", "HELP", "CHECKSUM")
+	readKeywords   = set("SELECT", "VALUES", "TABLE", "SHOW", "DESCRIBE", "DESC", "HELP", "CHECKSUM")
 	schemaKeywords = set("CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME", "COMMENT", "GRANT", "REVOKE",
 		"SECURITY", "REASSIGN", "INSTALL", "UNINSTALL", "IMPORT")
 	sessionKeywords = set("BEGIN", "START", "COMMIT", "END", "ROLLBACK", "ABORT", "SAVEPOINT", "RELEASE",
