@@ -8,7 +8,7 @@ import (
 
 func testStore(t *testing.T, s Store) {
 	t.Helper()
-	const key = "kiemdb-test-key"
+	const key = "lumen-test-key"
 	t.Cleanup(func() { _ = s.Delete(key) })
 
 	if _, err := s.Get(key); !errors.Is(err, ErrNotFound) {
@@ -32,8 +32,8 @@ func TestMemory(t *testing.T) { testStore(t, &Memory{}) }
 
 // TestKeyring touches the real OS keychain, so it only runs on request.
 func TestKeyring(t *testing.T) {
-	if os.Getenv("KIEMDB_TEST_KEYCHAIN") == "" {
-		t.Skip("set KIEMDB_TEST_KEYCHAIN=1 to test the OS keychain")
+	if os.Getenv("LUMEN_TEST_KEYCHAIN") == "" {
+		t.Skip("set LUMEN_TEST_KEYCHAIN=1 to test the OS keychain")
 	}
-	testStore(t, Keyring{Service: "kiemdb-test"})
+	testStore(t, Keyring{Service: "lumen-test"})
 }

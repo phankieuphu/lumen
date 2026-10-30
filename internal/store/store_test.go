@@ -9,7 +9,7 @@ import (
 )
 
 func TestOpenCreatesPrivateFileAndMigrates(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "nested ?#", "kiemdb.db")
+	path := filepath.Join(t.TempDir(), "nested ?#", "lumen.db")
 	s, err := Open(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
@@ -35,7 +35,7 @@ func TestOpenCreatesPrivateFileAndMigrates(t *testing.T) {
 }
 
 func TestReopenIsIdempotent(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "kiemdb.db")
+	path := filepath.Join(t.TempDir(), "lumen.db")
 	for range 2 {
 		s, err := Open(t.Context(), path)
 		if err != nil {
@@ -48,7 +48,7 @@ func TestReopenIsIdempotent(t *testing.T) {
 }
 
 func TestRefusesNewerDatabase(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "kiemdb.db")
+	path := filepath.Join(t.TempDir(), "lumen.db")
 	s, err := Open(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)

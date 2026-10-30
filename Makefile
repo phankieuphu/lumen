@@ -1,9 +1,9 @@
 SHELL := /bin/bash
-MODULE := github.com/patrick-rontech/kiemdb
+MODULE := github.com/phankieuphu/lumen
 GOBIN  ?= $(shell go env GOPATH)/bin
 
-export KIEMDB_TEST_POSTGRES_DSN ?= postgres://kiemdb:kiemdb@localhost:5432/kiemdb?sslmode=disable
-export KIEMDB_TEST_MYSQL_DSN    ?= kiemdb:kiemdb@tcp(localhost:3306)/kiemdb
+export LUMEN_TEST_POSTGRES_DSN ?= postgres://lumen:lumen@localhost:5432/lumen?sslmode=disable
+export LUMEN_TEST_MYSQL_DSN    ?= lumen:lumen@tcp(localhost:3306)/lumen
 
 .PHONY: help build run test test-int bench cover lint fmt fmt-check vuln check tools db-up db-down
 
@@ -11,10 +11,10 @@ help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-10s %s\n",$$1,$$2}'
 
 build: ## Build all packages and the binary
-	go build -trimpath -o bin/kiemdb ./cmd/kiemdb
+	go build -trimpath -o bin/lumen ./cmd/lumen
 
 run: build ## Run the app
-	./bin/kiemdb
+	./bin/lumen
 
 test: ## Unit tests with the race detector
 	go test -race -count=1 ./...

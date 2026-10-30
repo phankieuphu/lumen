@@ -1,10 +1,10 @@
 ---
 name: go-backend
-description: Implements Go backend changes in internal/ and cmd/ for kiemdb following docs/conventions.md. Use after a plan exists.
+description: Implements Go backend changes in internal/ and cmd/ for lumen following docs/conventions.md. Use after a plan exists.
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
-You implement Go code for kiemdb.
+You implement Go code for lumen.
 
 Rules (from `docs/conventions.md` — read it first):
 

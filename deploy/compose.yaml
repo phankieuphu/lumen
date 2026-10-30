@@ -1,17 +1,17 @@
 # Test databases for integration tests. Credentials are for local use only.
-name: kiemdb-dev
+name: lumen-dev
 
 services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_USER: kiemdb
-      POSTGRES_PASSWORD: kiemdb
-      POSTGRES_DB: kiemdb
+      POSTGRES_USER: lumen
+      POSTGRES_PASSWORD: lumen
+      POSTGRES_DB: lumen
     ports: ["127.0.0.1:5432:5432"]
     command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kiemdb"]
+      test: ["CMD-SHELL", "pg_isready -U lumen"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -20,13 +20,13 @@ services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_ROOT_PASSWORD: kiemdb
-      MYSQL_DATABASE: kiemdb
-      MYSQL_USER: kiemdb
-      MYSQL_PASSWORD: kiemdb
+      MYSQL_ROOT_PASSWORD: lumen
+      MYSQL_DATABASE: lumen
+      MYSQL_USER: lumen
+      MYSQL_PASSWORD: lumen
     ports: ["127.0.0.1:3306:3306"]
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-pkiemdb"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-plumen"]
       interval: 2s
       timeout: 3s
       retries: 60

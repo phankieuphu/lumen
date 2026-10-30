@@ -8,15 +8,15 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	"github.com/patrick-rontech/kiemdb/internal/driver/drivertest"
-	_ "github.com/patrick-rontech/kiemdb/internal/driver/postgres"
+	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/driver/drivertest"
+	_ "github.com/phankieuphu/lumen/internal/driver/postgres"
 )
 
 func TestConformance(t *testing.T) {
-	dsn := os.Getenv("KIEMDB_TEST_POSTGRES_DSN")
+	dsn := os.Getenv("LUMEN_TEST_POSTGRES_DSN")
 	if dsn == "" {
-		t.Skip("KIEMDB_TEST_POSTGRES_DSN not set")
+		t.Skip("LUMEN_TEST_POSTGRES_DSN not set")
 	}
 	pc, err := pgx.ParseConfig(dsn)
 	if err != nil {
@@ -29,6 +29,6 @@ func TestConformance(t *testing.T) {
 			Database: pc.Database, TLS: driver.TLSDisable,
 		},
 		SleepSQL: "SELECT pg_sleep(30)",
-		Table:    "kiemdb_conformance",
+		Table:    "lumen_conformance",
 	})
 }

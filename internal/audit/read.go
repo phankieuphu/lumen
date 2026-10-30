@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/patrick-rontech/kiemdb/internal/store"
+	"github.com/phankieuphu/lumen/internal/store"
 )
 
 // Filter selects entries. Zero fields match everything.

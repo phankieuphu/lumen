@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/patrick-rontech/kiemdb/internal/audit"
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	"github.com/patrick-rontech/kiemdb/internal/sqlscan"
-	"github.com/patrick-rontech/kiemdb/internal/store"
+	"github.com/phankieuphu/lumen/internal/audit"
+	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/sqlscan"
+	"github.com/phankieuphu/lumen/internal/store"
 )
 
 // History limits.

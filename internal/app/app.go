@@ -12,17 +12,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/patrick-rontech/kiemdb/internal/audit"
-	"github.com/patrick-rontech/kiemdb/internal/conn"
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	"github.com/patrick-rontech/kiemdb/internal/query"
-	"github.com/patrick-rontech/kiemdb/internal/secret"
-	"github.com/patrick-rontech/kiemdb/internal/store"
+	"github.com/phankieuphu/lumen/internal/audit"
+	"github.com/phankieuphu/lumen/internal/conn"
+	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/query"
+	"github.com/phankieuphu/lumen/internal/secret"
+	"github.com/phankieuphu/lumen/internal/store"
 
 	// Engines register themselves.
-	_ "github.com/patrick-rontech/kiemdb/internal/driver/mysql"
-	_ "github.com/patrick-rontech/kiemdb/internal/driver/postgres"
-	_ "github.com/patrick-rontech/kiemdb/internal/driver/sqlite"
+	_ "github.com/phankieuphu/lumen/internal/driver/mysql"
+	_ "github.com/phankieuphu/lumen/internal/driver/postgres"
+	_ "github.com/phankieuphu/lumen/internal/driver/sqlite"
 )
 
 // Event names emitted to the UI.
@@ -37,7 +37,7 @@ type Emitter interface {
 
 // Config configures App. Zero values select defaults.
 type Config struct {
-	// DataDir holds the local database. Defaults to <user config dir>/kiemdb.
+	// DataDir holds the local database. Defaults to <user config dir>/lumen.
 	DataDir string
 	Version string
 	Logger  *slog.Logger
@@ -70,9 +70,9 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 		if err != nil {
 			return nil, fmt.Errorf("app: find config dir: %w", err)
 		}
-		cfg.DataDir = filepath.Join(dir, "kiemdb")
+		cfg.DataDir = filepath.Join(dir, "lumen")
 	}
-	st, err := store.Open(ctx, filepath.Join(cfg.DataDir, "kiemdb.db"))
+	st, err := store.Open(ctx, filepath.Join(cfg.DataDir, "lumen.db"))
 	if err != nil {
 		return nil, err
 	}

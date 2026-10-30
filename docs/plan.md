@@ -13,7 +13,7 @@ The design document left five questions open; this plan picks a default for each
 | PostgreSQL parser | `pg_query_go` for Linux and macOS builds; a pure Go parser if Windows CGO builds hurt | Exact PostgreSQL parsing matters for lint and debug |
 | HypoPG for index proof | Optional; without it the advice is labelled "not verified" | Many servers do not have the extension |
 | Open source | Public repo from day one, MIT license | Portfolio value and early feedback |
-| App name | Working name `kiemdb` in code; final name later | SoiDB is taken; the name is a one-line change if chosen before release |
+| App name | `lumen` (chosen Oct 30, 2026) | SoiDB is taken; replaces the working name `kiemdb` |
 
 ## Milestones
 
@@ -35,8 +35,8 @@ After v0.1.0, phase 6 continues as ongoing work: SSH tunnels, SQL Server, ClickH
 One Go module with the core in `internal/`, so every module can be tested without the UI.
 
 ```text
-kiemdb/
-├─ cmd/kiemdb/            main.go: starts Wails and wires the services
+lumen/
+├─ cmd/lumen/            main.go: starts Wails and wires the services
 ├─ internal/
 │  ├─ driver/              Driver, Conn, optional interfaces (Stats, SlowQuery, Lock)
 │  │  ├─ postgres/
@@ -127,7 +127,7 @@ Tick tasks off as they are done; each list ends with its phase gate.
 
 ### Phase 6 · Polish + first release
 
-- [ ] Choose the final name and rename
+- [x] Choose the final name and rename
 - [ ] Code signing for Windows and macOS, notarization on macOS
 - [ ] Installers and auto-update
 - [ ] README, screenshots, and a short demo video

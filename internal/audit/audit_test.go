@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/patrick-rontech/kiemdb/internal/store"
+	"github.com/phankieuphu/lumen/internal/store"
 )
 
 func newLog(t *testing.T) (*Log, *store.Store) {
 	t.Helper()
-	s, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "kiemdb.db"))
+	s, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "lumen.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestExport(t *testing.T) {
 }
 
 func BenchmarkAppend(b *testing.B) {
-	s, err := store.Open(b.Context(), filepath.Join(b.TempDir(), "kiemdb.db"))
+	s, err := store.Open(b.Context(), filepath.Join(b.TempDir(), "lumen.db"))
 	if err != nil {
 		b.Fatal(err)
 	}

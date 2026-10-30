@@ -3,7 +3,7 @@ package mysql
 import (
 	"testing"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
+	"github.com/phankieuphu/lumen/internal/driver"
 )
 
 func TestMySQLConfig(t *testing.T) {

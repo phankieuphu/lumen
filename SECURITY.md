@@ -12,6 +12,6 @@ repository. You will get a reply within 7 days.
 
 ## Scope
 
-kiemdb stores connection secrets in the OS keychain and keeps a local audit log.
+lumen stores connection secrets in the OS keychain and keeps a local audit log.
 Reports about secret leakage, audit-log tampering, read-only bypass, or
 execution of SQL the user did not write are especially welcome.

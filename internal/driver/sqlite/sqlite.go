@@ -12,9 +12,9 @@ import (
 
 	_ "modernc.org/sqlite" // registers "sqlite"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	"github.com/patrick-rontech/kiemdb/internal/driver/sqladapter"
-	"github.com/patrick-rontech/kiemdb/internal/sqlscan"
+	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/driver/sqladapter"
+	"github.com/phankieuphu/lumen/internal/sqlscan"
 )
 
 // busyTimeout is how long a statement waits for a lock held by another

@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/patrick-rontech/kiemdb/internal/sqlscan"
-	"github.com/patrick-rontech/kiemdb/internal/store"
+	"github.com/phankieuphu/lumen/internal/sqlscan"
+	"github.com/phankieuphu/lumen/internal/store"
 )
 
 // Status of an audited statement.

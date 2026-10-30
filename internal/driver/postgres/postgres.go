@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
+	"github.com/phankieuphu/lumen/internal/driver"
 )
 
 // DefaultPort is PostgreSQL's standard port.

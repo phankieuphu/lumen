@@ -131,7 +131,7 @@ type Config struct {
 	MaxConns int
 	// ConnectTimeout defaults to 10s.
 	ConnectTimeout time.Duration
-	// AppName is reported to the server where supported. Defaults to "kiemdb".
+	// AppName is reported to the server where supported. Defaults to "lumen".
 	AppName string
 }
 
@@ -139,7 +139,7 @@ type Config struct {
 const (
 	DefaultMaxConns       = 4
 	DefaultConnectTimeout = 10 * time.Second
-	DefaultAppName        = "kiemdb"
+	DefaultAppName        = "lumen"
 )
 
 // WithDefaults returns a copy of c with zero fields set to their defaults.

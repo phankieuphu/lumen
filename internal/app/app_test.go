@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/patrick-rontech/kiemdb/internal/secret"
+	"github.com/phankieuphu/lumen/internal/secret"
 )
 
 type recorder struct {

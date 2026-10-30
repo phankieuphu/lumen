@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	"github.com/patrick-rontech/kiemdb/internal/driver/drivertest"
-	_ "github.com/patrick-rontech/kiemdb/internal/driver/sqlite"
+	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/driver/drivertest"
+	_ "github.com/phankieuphu/lumen/internal/driver/sqlite"
 )
 
 // sleepSQL keeps SQLite busy for a long time so cancel can interrupt it.
@@ -20,7 +20,7 @@ func TestConformance(t *testing.T) {
 		Dialect:  driver.SQLite,
 		Config:   driver.Config{Database: path},
 		SleepSQL: sleepSQL,
-		Table:    "kiemdb_conformance",
+		Table:    "lumen_conformance",
 	})
 }
 

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	"github.com/patrick-rontech/kiemdb/internal/secret"
-	"github.com/patrick-rontech/kiemdb/internal/store"
+	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/secret"
+	"github.com/phankieuphu/lumen/internal/store"
 )
 
 // Manager owns connection profiles and their pools. It is safe for

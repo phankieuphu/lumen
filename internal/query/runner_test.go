@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/patrick-rontech/kiemdb/internal/audit"
-	"github.com/patrick-rontech/kiemdb/internal/conn"
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	_ "github.com/patrick-rontech/kiemdb/internal/driver/sqlite"
-	"github.com/patrick-rontech/kiemdb/internal/secret"
-	"github.com/patrick-rontech/kiemdb/internal/store"
+	"github.com/phankieuphu/lumen/internal/audit"
+	"github.com/phankieuphu/lumen/internal/conn"
+	"github.com/phankieuphu/lumen/internal/driver"
+	_ "github.com/phankieuphu/lumen/internal/driver/sqlite"
+	"github.com/phankieuphu/lumen/internal/secret"
+	"github.com/phankieuphu/lumen/internal/store"
 )
 
 type env struct {
@@ -26,7 +26,7 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	st, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "kiemdb.db"))
+	st, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "lumen.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,10 +1,10 @@
 ---
 name: reviewer
-description: Reviews a kiemdb diff or PR for security, correctness, performance, concurrency, and convention issues. Use before opening or merging a PR. Read-only.
+description: Reviews a lumen diff or PR for security, correctness, performance, concurrency, and convention issues. Use before opening or merging a PR. Read-only.
 tools: Read, Grep, Glob, Bash
 ---
 
-You review changes to kiemdb. Get the diff with `git diff main...HEAD` (or the
+You review changes to lumen. Get the diff with `git diff main...HEAD` (or the
 range you are given) and read the surrounding code, not just the hunks.
 
 Check, in this order:

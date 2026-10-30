@@ -42,27 +42,27 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_USER: kiemdb
-          POSTGRES_PASSWORD: kiemdb
-          POSTGRES_DB: kiemdb
+          POSTGRES_USER: lumen
+          POSTGRES_PASSWORD: lumen
+          POSTGRES_DB: lumen
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U kiemdb" --health-interval 5s
+          --health-cmd "pg_isready -U lumen" --health-interval 5s
           --health-timeout 5s --health-retries 20
       mysql:
         image: mysql:8.4
         env:
-          MYSQL_ROOT_PASSWORD: kiemdb
-          MYSQL_DATABASE: kiemdb
-          MYSQL_USER: kiemdb
-          MYSQL_PASSWORD: kiemdb
+          MYSQL_ROOT_PASSWORD: lumen
+          MYSQL_DATABASE: lumen
+          MYSQL_USER: lumen
+          MYSQL_PASSWORD: lumen
         ports: ["3306:3306"]
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -pkiemdb" --health-interval 5s
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -plumen" --health-interval 5s
           --health-timeout 5s --health-retries 30
     env:
-      KIEMDB_TEST_POSTGRES_DSN: postgres://kiemdb:kiemdb@localhost:5432/kiemdb?sslmode=disable
-      KIEMDB_TEST_MYSQL_DSN: kiemdb:kiemdb@tcp(localhost:3306)/kiemdb
+      LUMEN_TEST_POSTGRES_DSN: postgres://lumen:lumen@localhost:5432/lumen?sslmode=disable
+      LUMEN_TEST_MYSQL_DSN: lumen:lumen@tcp(localhost:3306)/lumen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -12,8 +12,8 @@ import (
 
 	gomysql "github.com/go-sql-driver/mysql"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	"github.com/patrick-rontech/kiemdb/internal/driver/sqladapter"
+	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/driver/sqladapter"
 )
 
 // DefaultPort is MySQL's standard port.

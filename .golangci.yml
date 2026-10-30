@@ -39,7 +39,7 @@ linters:
         - name: var-naming
     wrapcheck:
       ignore-package-globs:
-        - github.com/patrick-rontech/kiemdb/*
+        - github.com/phankieuphu/lumen/*
   exclusions:
     rules:
       - path: _test\.go
@@ -51,4 +51,4 @@ formatters:
   enable: [gofumpt, goimports]
   settings:
     goimports:
-      local-prefixes: [github.com/patrick-rontech/kiemdb]
+      local-prefixes: [github.com/phankieuphu/lumen]

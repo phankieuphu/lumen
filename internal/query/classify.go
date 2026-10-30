@@ -6,8 +6,8 @@ package query
 import (
 	"strings"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
-	"github.com/patrick-rontech/kiemdb/internal/sqlscan"
+	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/sqlscan"
 )
 
 // Kind is what a statement does, from least to most dangerous.

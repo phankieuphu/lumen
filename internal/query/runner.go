@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/patrick-rontech/kiemdb/internal/audit"
-	"github.com/patrick-rontech/kiemdb/internal/conn"
-	"github.com/patrick-rontech/kiemdb/internal/driver"
+	"github.com/phankieuphu/lumen/internal/audit"
+	"github.com/phankieuphu/lumen/internal/conn"
+	"github.com/phankieuphu/lumen/internal/driver"
 )
 
 // Errors returned by Run. Policy errors are returned before anything reaches

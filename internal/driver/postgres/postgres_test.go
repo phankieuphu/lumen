@@ -6,7 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
+	"github.com/phankieuphu/lumen/internal/driver"
 )
 
 func TestPoolConfig(t *testing.T) {

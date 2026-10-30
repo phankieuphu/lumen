@@ -23,7 +23,7 @@ type Store interface {
 }
 
 // DefaultService is the keychain service name entries are filed under.
-const DefaultService = "kiemdb"
+const DefaultService = "lumen"
 
 // Keyring stores secrets in the OS keychain.
 type Keyring struct {

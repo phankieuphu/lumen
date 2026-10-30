@@ -31,7 +31,7 @@ In priority order when they conflict:
 ## 3. Go style
 
 - Format with `gofumpt`; imports grouped std / third-party / local
-  (`goimports -local github.com/patrick-rontech/kiemdb`).
+  (`goimports -local github.com/phankieuphu/lumen`).
 - Names: short, lowercase package names (`audit`, not `auditlog` or `utils`).
   No `util`, `common`, `helpers`, `misc` packages.
 - Constructors are `New(...)`; options use a `Config` struct with documented
@@ -92,7 +92,7 @@ In priority order when they conflict:
   (`TestClassify/with_cte_delete_is_write`).
 - Engines are tested against real databases (`deploy/compose.yaml`), not mocks.
   Integration tests use the `integration` build tag and skip cleanly when the
-  `KIEMDB_TEST_*_DSN` variable is unset.
+  `LUMEN_TEST_*_DSN` variable is unset.
 - Use `t.Context()`, `t.TempDir()`, `t.Cleanup()`; no sleeps for sync.
 - New behaviour ships with tests. Bug fixes ship with a test that fails before
   the fix.

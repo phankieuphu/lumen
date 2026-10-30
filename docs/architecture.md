@@ -4,7 +4,7 @@
 
 | Package | Job | Depends on |
 | --- | --- | --- |
-| `cmd/kiemdb` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
+| `cmd/lumen` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
 | `ui/shell` | The only Wails import; binds `app` methods and emits events | `app` |
 | `internal/app` | Façade the UI calls; maps domain types to DTOs | `query`, `conn`, `audit`, `store` |
 | `internal/query` | Run / cancel by request ID, page streaming, classifier | `conn`, `audit`, `store`, `driver` |

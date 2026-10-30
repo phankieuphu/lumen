@@ -5,7 +5,7 @@ repository. Humans should read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## Project
 
-kiemdb (working name) — desktop SQL client. Go 1.26 backend in `internal/`,
+lumen — desktop SQL client. Go 1.26 backend in `internal/`,
 Wails v3 shell in `ui/shell`, React + TypeScript frontend in `ui/frontend`.
 The roadmap is [docs/plan.md](docs/plan.md); the layout and query path are in
 [docs/architecture.md](docs/architecture.md).

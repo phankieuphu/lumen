@@ -1,8 +1,8 @@
 # Default owner for everything
-*                     @patrick-rontech
+*                     @phankieuphu
 
 # Security-sensitive areas need explicit review
-/internal/audit/      @patrick-rontech
-/internal/secret/     @patrick-rontech
-/internal/query/      @patrick-rontech
-/.github/             @patrick-rontech
+/internal/audit/      @phankieuphu
+/internal/secret/     @phankieuphu
+/internal/query/      @phankieuphu
+/.github/             @phankieuphu

@@ -1,4 +1,4 @@
-// Command kiemdb starts the desktop SQL client.
+// Command lumen starts the desktop SQL client.
 package main
 
 import (
@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/patrick-rontech/kiemdb/internal/app"
-	"github.com/patrick-rontech/kiemdb/ui/shell"
+	"github.com/phankieuphu/lumen/internal/app"
+	"github.com/phankieuphu/lumen/ui/shell"
 )
 
 // version is set at build time: -ldflags "-X main.version=v0.0.1".
@@ -20,7 +20,7 @@ var version = "dev"
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "kiemdb:", err)
+		fmt.Fprintln(os.Stderr, "lumen:", err)
 		os.Exit(1)
 	}
 }

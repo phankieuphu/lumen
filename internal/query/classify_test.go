@@ -3,7 +3,7 @@ package query
 import (
 	"testing"
 
-	"github.com/patrick-rontech/kiemdb/internal/driver"
+	"github.com/phankieuphu/lumen/internal/driver"
 )
 
 func TestClassify(t *testing.T) {

@@ -37,7 +37,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: kiemdb version and OS
+      label: lumen version and OS
       placeholder: v0.0.1 on macOS 15
     validations:
       required: true
