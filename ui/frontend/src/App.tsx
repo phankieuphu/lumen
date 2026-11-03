@@ -5,20 +5,27 @@ import { Icon, type IconName } from "./components/icons";
 import type { EditorHandle } from "./components/SqlEditor";
 import { ErrorText } from "./components/ui";
 import { useAsync } from "./hooks/useAsync";
+import { AdvisorScreen } from "./screens/AdvisorScreen";
 import { AuditScreen } from "./screens/AuditScreen";
 import { ConnectionList } from "./screens/ConnectionList";
 import { ConnectionsScreen } from "./screens/ConnectionsScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
+import { MonitorScreen } from "./screens/MonitorScreen";
 import { QueryScreen } from "./screens/QueryScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
 
-type View = "query" | "history" | "connections" | "audit";
+type View = "query" | "history" | "advisor" | "monitor" | "connections" | "audit" | "settings";
 
 const views: { id: View; label: string; icon: IconName }[] = [
   { id: "query", label: "Query editor", icon: "code" },
   { id: "history", label: "History", icon: "history" },
+  { id: "advisor", label: "Slow-query advisor", icon: "bolt" },
+  { id: "monitor", label: "Monitor", icon: "pulse" },
   { id: "connections", label: "Connections", icon: "plug" },
   { id: "audit", label: "Audit log", icon: "audit" },
 ];
+// Pinned to the bottom of the rail.
+const settingsView = { id: "settings", label: "AI settings", icon: "sliders" } as const;
 
 /** NEW marks the connections screen's form as creating, not editing. */
 const NEW = "";
@@ -74,18 +81,10 @@ export function App() {
           <Icon name="database" size={18} strokeWidth={2} />
         </div>
         {views.map((v) => (
-          <button
-            key={v.id}
-            type="button"
-            className="rail-item"
-            aria-label={v.label}
-            title={v.label}
-            aria-current={view === v.id ? "page" : undefined}
-            onClick={() => setView(v.id)}
-          >
-            <Icon name={v.icon} size={20} />
-          </button>
+          <RailItem key={v.id} {...v} current={view === v.id} onClick={() => setView(v.id)} />
         ))}
+        <span className="spacer" />
+        <RailItem {...settingsView} current={view === "settings"} onClick={() => setView("settings")} />
       </nav>
       <div className="view">
         <ErrorText error={conns.error} />
@@ -123,7 +122,37 @@ export function App() {
           />
         )}
         {view === "audit" && <AuditScreen connections={connections} onOpen={openInEditor} />}
+        {(view === "advisor" || view === "monitor") && !conn && !conns.loading && (
+          <div className="empty-state">
+            <p>Add a connection first.</p>
+            <button type="button" className="primary" onClick={newConnection}>
+              <Icon name="plus" size={14} strokeWidth={2} /> New connection
+            </button>
+          </div>
+        )}
+        {view === "advisor" && conn && (
+          <AdvisorScreen conn={conn} connections={connections} onSelectConn={setSelectedId} onOpen={openInEditor} />
+        )}
+        {view === "monitor" && conn && (
+          <MonitorScreen conn={conn} connections={connections} onSelectConn={setSelectedId} onAdvisor={() => setView("advisor")} />
+        )}
+        {view === "settings" && <SettingsScreen />}
       </div>
     </div>
+  );
+}
+
+interface RailItemProps {
+  label: string;
+  icon: IconName;
+  current: boolean;
+  onClick: () => void;
+}
+
+function RailItem({ label, icon, current, onClick }: RailItemProps) {
+  return (
+    <button type="button" className="rail-item" aria-label={label} title={label} aria-current={current ? "page" : undefined} onClick={onClick}>
+      <Icon name={icon} size={20} />
+    </button>
   );
 }

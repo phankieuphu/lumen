@@ -1,7 +1,7 @@
 // Small presentational pieces shared across screens.
 import { type ReactNode, useEffect, useRef } from "react";
 
-import type { Env, Kind, Status } from "../api";
+import type { Connection, Env, Kind, Status } from "../api";
 import { Icon } from "./icons";
 
 export function Badge({ tone, children }: { tone: string; children: ReactNode }) {
@@ -43,7 +43,7 @@ export function Banner({ tone, children }: { tone: "danger" | "warn" | "ok"; chi
 
 interface SwitchProps {
   label: string;
-  help?: string;
+  help?: ReactNode;
   checked: boolean;
   disabled?: boolean;
   onChange: (checked: boolean) => void;
@@ -69,6 +69,29 @@ export function SwitchRow({ label, help, checked, disabled, onChange }: SwitchPr
         <span className="switch-knob" />
       </button>
     </div>
+  );
+}
+
+interface ConnSelectProps {
+  connections: readonly Connection[];
+  value: string;
+  onChange: (id: string) => void;
+}
+
+/** ConnSelect picks the connection a screen works on; the dot shows its env. */
+export function ConnSelect({ connections, value, onChange }: ConnSelectProps) {
+  const env = connections.find((c) => c.id === value)?.env ?? "";
+  return (
+    <span className="pill-select-wrap">
+      <EnvDot env={env} />
+      <select className="pill-select" aria-label="Connection" value={value} onChange={(e) => onChange(e.target.value)}>
+        {connections.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 
