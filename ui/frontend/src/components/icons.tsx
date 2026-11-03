@@ -28,6 +28,16 @@ const paths = {
   ),
   check: <path d="M5 12l5 5 9-10" />,
   alert: <path d="M12 4l9 16H3l9-16zM12 10v4M12 17.5v.01" />,
+  bolt: <path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z" />,
+  pulse: <path d="M3 12h4l3-8 4 16 3-8h4" />,
+  sliders: (
+    <>
+      <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="8" cy="17" r="2" />
+    </>
+  ),
+  sparkle: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof paths;
