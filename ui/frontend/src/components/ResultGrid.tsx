@@ -11,7 +11,8 @@ const SAMPLE_ROWS = 50;
 
 function gridColumns(columns: readonly Column[], sample: readonly unknown[][], rowCount: number): GridColumn[] {
   const widths = columnWidths(
-    columns.map((c) => c.name),
+    // The header shows the type after the name, so size for both.
+    columns.map((c) => `${c.name} ${c.type}`),
     sample.map((row) => row.map((v) => (v === null ? "NULL" : cellText(v)))),
   );
   const rowNum: GridColumn = { key: "#", title: "#", width: Math.max(48, formatCount(rowCount).length * 8 + 20), align: "end" };

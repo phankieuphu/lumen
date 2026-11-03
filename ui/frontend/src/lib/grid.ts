@@ -15,7 +15,8 @@ export function visibleRange(scrollTop: number, viewport: number, rowHeight: num
 }
 
 const CHAR_PX = 7.5;
-const PAD_PX = 20;
+// Cell padding (2 × 14px) plus a little slack for the ellipsis.
+const PAD_PX = 32;
 export const MIN_COL_PX = 64;
 export const MAX_COL_PX = 360;
 

@@ -1,29 +1,46 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { type AuditEntry, type AuditFilter, type Connection, errorMessage, type ExportFormat, type VerifyResult, useBackend } from "../api";
+import { Icon } from "../components/icons";
 import { type ItemColumn, ItemGrid } from "../components/ItemGrid";
-import { EnvBadge, ErrorText, Field, KindBadge, StatusBadge } from "../components/ui";
+import { Banner, EnvBadge, EnvDot, ErrorText, Field, KindBadge, Segmented, StatusBadge } from "../components/ui";
 import { usePaged } from "../hooks/usePaged";
-import { formatCount, formatDuration, formatTime, oneLine } from "../lib/format";
+import { dialectName, formatCount, formatDuration, formatTime, oneLine } from "../lib/format";
 
 const PAGE = 200;
+/** Above this many connections the filter is a dropdown instead of buttons. */
+const MAX_SEGMENTS = 5;
 
+// Sequence number and rows affected are in the detail panel, so the list fits beside it.
 const columns: ItemColumn<AuditEntry>[] = [
-  { key: "seq", title: "#", width: 70, align: "end", render: (e) => e.seq },
-  { key: "at", title: "Time", width: 170, render: (e) => formatTime(e.at) },
-  { key: "conn", title: "Connection", width: 160, render: (e) => e.connName },
-  { key: "env", title: "Env", width: 80, render: (e) => <EnvBadge env={e.env} /> },
-  { key: "status", title: "Status", width: 90, render: (e) => <StatusBadge status={e.status} /> },
+  { key: "at", title: "Time", width: 196, render: (e) => <span className="mono muted">{formatTime(e.at)}</span> },
   { key: "kind", title: "Kind", width: 80, render: (e) => <KindBadge kind={e.kind} /> },
-  { key: "rows", title: "Affected", width: 90, align: "end", render: (e) => (e.rowsAffected >= 0 ? formatCount(e.rowsAffected) : "") },
-  { key: "sql", title: "SQL", width: 700, render: (e) => oneLine(e.sql) },
+  { key: "sql", title: "Statement", width: 320, render: (e) => <span className="mono">{oneLine(e.sql)}</span> },
+  {
+    key: "conn",
+    title: "Connection",
+    width: 160,
+    render: (e) => (
+      <span className="with-icon">
+        <EnvDot env={e.env} />
+        {e.connName}
+      </span>
+    ),
+  },
+  { key: "status", title: "Status", width: 84, align: "end", render: (e) => <StatusBadge status={e.status} /> },
 ];
 
 /** toRFC3339 converts a datetime-local value; empty means no bound. */
 const toRFC3339 = (local: string) => (local ? new Date(local).toISOString() : "");
 
+interface Props {
+  connections: readonly Connection[];
+  /** Opens a statement in the query editor on its connection. */
+  onOpen: (sql: string, connId: string) => void;
+}
+
 /** AuditScreen browses, verifies, and exports the append-only audit log. */
-export function AuditScreen({ connections }: { connections: readonly Connection[] }) {
+export function AuditScreen({ connections, onOpen }: Props) {
   const backend = useBackend();
   const [connId, setConnId] = useState("");
   const [since, setSince] = useState("");
@@ -64,19 +81,45 @@ export function AuditScreen({ connections }: { connections: readonly Connection[
       if (await backend.auditExport(format, filter)) setNotice(`Exported as ${format.toUpperCase()}.`);
     });
 
+  const connOptions = [{ value: "", label: "All connections" }, ...connections.map((c) => ({ value: c.id, label: c.name }))];
+
   return (
-    <section className="list-screen audit">
-      <div className="toolbar wrap">
-        <Field label="Connection">
-          <select value={connId} onChange={(e) => setConnId(e.target.value)}>
-            <option value="">All</option>
-            {connections.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+    <section className="page audit" aria-label="Audit log">
+      <header className="page-head">
+        <div>
+          <h1 className="title">Audit log</h1>
+          <p className="muted">Every change made through this app. Entries are hash-chained and cannot be edited or deleted.</p>
+        </div>
+        <span className="spacer" />
+        <div className="page-actions">
+          {verify?.ok && (
+            <span className="chip chip-ok with-icon">
+              <Icon name="check" size={14} strokeWidth={2} /> Hash chain verified · {formatCount(verify.entries)}
+            </span>
+          )}
+          <button type="button" onClick={() => void runVerify()} disabled={busy}>
+            Verify chain
+          </button>
+          <button type="button" onClick={() => void runExport("csv")} disabled={busy}>
+            Export CSV
+          </button>
+          <button type="button" onClick={() => void runExport("json")} disabled={busy}>
+            Export JSON
+          </button>
+        </div>
+      </header>
+      <div className="filters">
+        {connections.length <= MAX_SEGMENTS ? (
+          <Segmented label="Connection" value={connId} options={connOptions} onChange={setConnId} />
+        ) : (
+          <select aria-label="Connection" value={connId} onChange={(e) => setConnId(e.target.value)}>
+            {connOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
-        </Field>
+        )}
         <Field label="Since">
           <input type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} />
         </Field>
@@ -84,55 +127,92 @@ export function AuditScreen({ connections }: { connections: readonly Connection[
           <input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
         </Field>
         <span className="spacer" />
+        <span className="muted">{formatCount(items.length)} entries</span>
         <button type="button" onClick={reload}>
           Refresh
         </button>
-        <button type="button" onClick={() => void runVerify()} disabled={busy}>
-          Verify chain
-        </button>
-        <button type="button" onClick={() => void runExport("csv")} disabled={busy}>
-          Export CSV
-        </button>
-        <button type="button" onClick={() => void runExport("json")} disabled={busy}>
-          Export JSON
-        </button>
       </div>
-      {verify &&
-        (verify.ok ? (
-          <p className="ok pad">Chain intact: {formatCount(verify.entries)} entries verified.</p>
-        ) : (
-          <p className="error pad" role="alert">
-            Chain broken at #{verify.brokenAt}: {verify.reason}
-          </p>
-        ))}
-      {notice && <p className="ok pad">{notice}</p>}
+      {verify && !verify.ok && (
+        <Banner tone="danger">
+          Chain broken at #{verify.brokenAt}: {verify.reason}
+        </Banner>
+      )}
+      {notice && <Banner tone="ok">{notice}</Banner>}
       <ErrorText error={error ?? actionError} />
       <div className="split">
-        <ItemGrid columns={columns} items={items} selected={selected} onSelect={setSelected} onEndReached={loadMore} empty={loading ? "Loading…" : "No audit entries."} />
-        {entry && <AuditDetail entry={entry} />}
+        <div className="card grid-card">
+          <ItemGrid columns={columns} items={items} selected={selected} onSelect={setSelected} onEndReached={loadMore} empty={loading ? "Loading…" : "No audit entries."} />
+        </div>
+        {entry && <AuditDetail entry={entry} onOpen={onOpen} />}
       </div>
     </section>
   );
 }
 
-function AuditDetail({ entry }: { entry: AuditEntry }) {
+function AuditDetail({ entry, onOpen }: { entry: AuditEntry; onOpen: Props["onOpen"] }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => setCopied(false), [entry]);
+
+  const copy = () =>
+    void navigator.clipboard.writeText(entry.sql).then(
+      () => setCopied(true),
+      () => setCopied(false),
+    );
+
   return (
-    <aside className="detail" aria-label={`Audit entry ${entry.seq}`}>
-      <h3>Entry #{entry.seq}</h3>
-      <dl>
-        <dt>Time</dt>
-        <dd>{formatTime(entry.at)}</dd>
-        <dt>Connection</dt>
-        <dd>
-          {entry.connName} ({entry.dialect})
-        </dd>
-        <dt>Duration</dt>
-        <dd>{formatDuration(entry.durationMs)}</dd>
-        <dt>Hash</dt>
-        <dd className="mono small">{entry.hash}</dd>
-      </dl>
-      {entry.error && <ErrorText error={entry.error} />}
-      <pre className="sql-preview">{entry.sql}</pre>
+    <aside className="card detail" aria-label={`Audit entry ${entry.seq}`}>
+      <div className="detail-head">
+        <div className="with-icon">
+          <KindBadge kind={entry.kind} />
+          <StatusBadge status={entry.status} />
+        </div>
+        <h2>Entry #{entry.seq}</h2>
+      </div>
+      <div className="detail-body">
+        <dl className="facts">
+          <div>
+            <dt>Time</dt>
+            <dd>{formatTime(entry.at)}</dd>
+          </div>
+          <div>
+            <dt>Connection</dt>
+            <dd>{entry.connName}</dd>
+          </div>
+          <div>
+            <dt>Environment</dt>
+            <dd>
+              <EnvBadge env={entry.env} />
+            </dd>
+          </div>
+          <div>
+            <dt>Engine</dt>
+            <dd>{dialectName(entry.dialect)}</dd>
+          </div>
+          <div>
+            <dt>Rows affected</dt>
+            <dd>{entry.rowsAffected >= 0 ? formatCount(entry.rowsAffected) : "–"}</dd>
+          </div>
+          <div>
+            <dt>Duration</dt>
+            <dd>{formatDuration(entry.durationMs)}</dd>
+          </div>
+        </dl>
+        <div className="field-label">Statement</div>
+        <pre className="sql-preview">{entry.sql}</pre>
+        {entry.error && <Banner tone="danger">{entry.error}</Banner>}
+      </div>
+      <footer className="card-foot">
+        <button type="button" onClick={copy}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <button type="button" onClick={() => onOpen(entry.sql, entry.connId)}>
+          Open in editor
+        </button>
+        <span className="spacer" />
+        <span className="mono muted small-text hash" title={entry.hash}>
+          hash {entry.hash.slice(0, 12)}
+        </span>
+      </footer>
     </aside>
   );
 }

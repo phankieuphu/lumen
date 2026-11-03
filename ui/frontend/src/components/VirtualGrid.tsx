@@ -6,7 +6,7 @@ export interface GridColumn {
   key: string;
   title: string;
   width: number;
-  /** Shown under the title, e.g. the column type. */
+  /** Shown after the title, e.g. the column type. */
   hint?: string;
   align?: "start" | "end";
 }
@@ -32,7 +32,7 @@ const OVERSCAN = 8;
  * window height, not on the row count. Rows have a fixed height; the header
  * is sticky inside the same scroller, so horizontal scrolling stays in sync.
  */
-export function VirtualGrid({ columns, rowCount, renderCell, version = 0, rowHeight = 26, selected, onSelect, onEndReached, empty }: Props) {
+export function VirtualGrid({ columns, rowCount, renderCell, version = 0, rowHeight = 32, selected, onSelect, onEndReached, empty }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState(0);
   const [first, setFirst] = useState(0);
