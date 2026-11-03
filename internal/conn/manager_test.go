@@ -14,21 +14,43 @@ import (
 
 func newManager(t *testing.T) (*Manager, *secret.Memory) {
 	t.Helper()
+	sec := &secret.Memory{}
+	return newManagerWith(t, sec), sec
+}
+
+// dataDirs holds each test's directory for SQLite files; see newManagerWith.
+var dataDirs sync.Map // *testing.T → string
+
+// newManagerWith creates the test's data directory before registering the
+// manager's cleanup. Cleanups run last-in first-out, so pools close before
+// the directory is removed; Windows cannot delete a file that is still open.
+func newManagerWith(t *testing.T, secrets secret.Store) *Manager {
+	t.Helper()
+	dataDirs.Store(t, t.TempDir())
 	s, err := store.OpenMemory(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	sec := &secret.Memory{}
-	m := NewManager(s, sec)
+	m := NewManager(s, secrets)
 	t.Cleanup(func() {
 		_ = m.CloseAll()
 		_ = s.Close()
+		dataDirs.Delete(t)
 	})
-	return m, sec
+	return m
+}
+
+// dataDir is the test's directory for SQLite files, closed-before-removed
+// when the test also called newManager.
+func dataDir(t *testing.T) string {
+	if d, ok := dataDirs.Load(t); ok {
+		return d.(string)
+	}
+	return t.TempDir()
 }
 
 func sqliteProfile(t *testing.T, name string) Profile {
-	return Profile{Name: name, Dialect: driver.SQLite, Database: filepath.Join(t.TempDir(), name+".db")}
+	return Profile{Name: name, Dialect: driver.SQLite, Database: filepath.Join(dataDir(t), name+".db")}
 }
 
 func TestValidate(t *testing.T) {
@@ -174,7 +196,7 @@ func TestGetFailureIsRetried(t *testing.T) {
 	ctx := t.Context()
 	p, err := m.Create(ctx, Profile{
 		Name: "missing", Dialect: driver.SQLite,
-		Database: filepath.Join(t.TempDir(), "nope", "x.db"), ReadOnly: true,
+		Database: filepath.Join(dataDir(t), "nope", "x.db"), ReadOnly: true,
 	}, "")
 	if err != nil {
 		t.Fatal(err)
@@ -187,5 +209,25 @@ func TestGetFailureIsRetried(t *testing.T) {
 	}
 	if _, _, err := m.Get(ctx, "no-such-id"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown id: %v", err)
+	}
+}
+
+// brokenKeychain fails every call, like a Linux desktop without Secret Service.
+type brokenKeychain struct{}
+
+func (brokenKeychain) Get(string) (string, error) { return "", errors.New("keychain unavailable") }
+func (brokenKeychain) Set(string, string) error   { return errors.New("keychain unavailable") }
+func (brokenKeychain) Delete(string) error        { return errors.New("keychain unavailable") }
+
+func TestSQLiteOpensWithoutKeychain(t *testing.T) {
+	m := newManagerWith(t, brokenKeychain{})
+	ctx := t.Context()
+
+	p, err := m.Create(ctx, sqliteProfile(t, "local"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.Get(ctx, p.ID); err != nil {
+		t.Fatalf("SQLite open needed the keychain: %v", err)
 	}
 }

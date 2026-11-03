@@ -145,9 +145,13 @@ func (m *Manager) open(ctx context.Context, id string) (driver.Conn, Profile, er
 	if err != nil {
 		return nil, Profile{}, err
 	}
-	pw, err := m.password(id)
-	if err != nil {
-		return nil, Profile{}, err
+	// SQLite has no password, so it must not depend on the keychain being
+	// reachable (no Secret Service on a headless or minimal Linux desktop).
+	var pw string
+	if prof.Dialect != driver.SQLite {
+		if pw, err = m.password(id); err != nil {
+			return nil, Profile{}, err
+		}
 	}
 	c, err := driver.Open(ctx, prof.Dialect, prof.Config(pw))
 	if err != nil {
@@ -159,7 +163,7 @@ func (m *Manager) open(ctx context.Context, id string) (driver.Conn, Profile, er
 func (m *Manager) password(id string) (string, error) {
 	pw, err := m.secrets.Get(id)
 	if errors.Is(err, secret.ErrNotFound) {
-		return "", nil // passwordless auth (trust, peer, SQLite)
+		return "", nil // passwordless auth (trust, peer)
 	}
 	if err != nil {
 		return "", fmt.Errorf("conn: read password: %w", err)
