@@ -16,6 +16,8 @@
 Write the notes in `docs/releases/vX.Y.Z.md`, merge, then tag `main`:
 `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow builds
 and publishes the packages. Tags below `v1` are marked as pre-releases.
+Creating the release from the GitHub page instead also works: the workflow
+attaches the packages to it and replaces its notes with the notes file.
 
 ## Workflow
 
