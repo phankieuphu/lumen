@@ -133,6 +133,19 @@ button.danger.solid {
   font-weight: 600;
 }
 
+button.link {
+  height: auto;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--accent);
+}
+
+button.link:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
 .icon-button {
   width: 32px;
   height: 32px;
@@ -150,6 +163,14 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   min-width: 0;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 input::placeholder {
@@ -301,6 +322,27 @@ button:focus-visible {
 
 .dot-prod {
   background: var(--danger);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.toolbar input,
+.toolbar select {
+  height: 36px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 /* Shell: icon rail + view */
@@ -1625,4 +1667,263 @@ button.ai-button {
   .two-col.wide-left {
     grid-template-columns: 1fr;
   }
+}
+
+/* Relations (ER diagram) */
+
+.erd-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  --erd-edge: #6c7686;
+  --erd-pk: var(--warn);
+  --erd-fk: var(--accent);
+}
+
+.erd-toolbar {
+  flex-wrap: wrap;
+}
+
+.erd-toolbar input[type="search"] {
+  width: 180px;
+}
+
+.erd-focus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  background: var(--select);
+  border-bottom: 1px solid var(--line);
+}
+
+.erd-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.erd-markers {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.erd-mk path,
+.erd-mk circle {
+  fill: none;
+  stroke: var(--erd-edge);
+  stroke-width: 1.4;
+}
+
+.erd-mk circle {
+  fill: var(--bg);
+}
+
+.erd-mk.hl path,
+.erd-mk.hl circle {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+
+.erd-canvas .react-flow {
+  --xy-background-color: var(--panel);
+  --xy-node-border-radius: 6px;
+  --xy-minimap-background-color: var(--bg);
+  --xy-minimap-mask-background-color: rgb(18 21 26 / 0.65);
+  --xy-minimap-mask-stroke-color: var(--line);
+  --xy-controls-button-background-color: var(--bg);
+  --xy-controls-button-background-color-hover: var(--raised);
+  --xy-controls-button-color: var(--fg);
+  --xy-controls-button-border-color: var(--line);
+  --xy-edge-label-background-color: var(--bg);
+  --xy-edge-label-color: var(--fg);
+}
+
+.erd-canvas .react-flow__node-table {
+  transition: opacity 120ms;
+}
+
+.erd-canvas .react-flow__node.erd-dim {
+  opacity: 0.25;
+}
+
+.erd-table {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+  font-size: 12px;
+  padding-bottom: 6px;
+  cursor: grab;
+}
+
+.erd-view {
+  border-style: dashed;
+}
+
+.erd-selected .erd-table {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.erd-match .erd-table {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 2px var(--warn);
+}
+
+.erd-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  margin-bottom: 6px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+  border-radius: 6px 6px 0 0;
+}
+
+.erd-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erd-schema {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.erd-tag {
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.erd-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  font-family: var(--mono);
+}
+
+.erd-row:hover {
+  background: var(--panel);
+}
+
+.erd-row.hot {
+  background: var(--select);
+}
+
+.erd-key {
+  width: 18px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--erd-fk);
+}
+
+.erd-row.pk .erd-key,
+.erd-key.pk {
+  color: var(--erd-pk);
+}
+
+.erd-col {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erd-row.pk .erd-col {
+  font-weight: 600;
+}
+
+.erd-type {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Column handles are anchors for edges only; they are never dragged. */
+.erd-row .react-flow__handle {
+  width: 6px;
+  height: 6px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.erd-edge .react-flow__edge-path {
+  stroke: var(--erd-edge);
+  stroke-width: 1.4;
+}
+
+.erd-edge.hl .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.erd-edge.dim {
+  opacity: 0.15;
+}
+
+.erd-minimap .react-flow__minimap-node {
+  fill: var(--raised);
+  stroke: var(--line);
+}
+
+.erd-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.erd-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.erd-detail-head h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erd-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.erd-detail h3 {
+  margin: 6px 0 0;
+}
+
+.erd-cols {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.erd-cols td {
+  padding: 2px 6px 2px 0;
+  vertical-align: top;
+}
+
+.erd-refs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
 }

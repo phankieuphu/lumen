@@ -36,6 +36,7 @@ export const wailsBackend: Backend = {
   cancelQuery: (requestId) => call("CancelQuery", requestId),
   onPage: (fn) => Events.On(EVENT_QUERY_PAGE, (ev) => fn(ev.data as Page)),
   queryHistory: (connId, beforeId, limit) => call("QueryHistory", connId, beforeId, limit),
+  schema: (connId) => call("Schema", connId),
 
   auditList: (filter) => call("AuditList", filter),
   auditVerify: () => call("AuditVerify"),

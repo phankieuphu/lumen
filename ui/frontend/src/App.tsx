@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 
 import { type Connection, useBackend } from "./api";
 import { Icon, type IconName } from "./components/icons";
@@ -14,11 +14,15 @@ import { MonitorScreen } from "./screens/MonitorScreen";
 import { QueryScreen } from "./screens/QueryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 
-type View = "query" | "history" | "advisor" | "monitor" | "connections" | "audit" | "settings";
+// React Flow and dagre load only when the diagram is first opened.
+const RelationsScreen = lazy(() => import("./screens/RelationsScreen").then((m) => ({ default: m.RelationsScreen })));
+
+type View = "query" | "history" | "relations" | "advisor" | "monitor" | "connections" | "audit" | "settings";
 
 const views: { id: View; label: string; icon: IconName }[] = [
   { id: "query", label: "Query editor", icon: "code" },
   { id: "history", label: "History", icon: "history" },
+  { id: "relations", label: "Relations", icon: "relations" },
   { id: "advisor", label: "Slow-query advisor", icon: "bolt" },
   { id: "monitor", label: "Monitor", icon: "pulse" },
   { id: "connections", label: "Connections", icon: "plug" },
@@ -73,7 +77,7 @@ export function App() {
     setView("query");
   };
 
-  const workspace = view === "query" || view === "history";
+  const workspace = view === "query" || view === "history" || view === "relations";
   return (
     <div className="app">
       <nav className="rail" aria-label="Main">
@@ -99,6 +103,11 @@ export function App() {
             )}
             {conn && view === "history" && (
               <HistoryScreen conn={conn} refresh={historyVersion} onOpen={(sql) => openInEditor(sql)} />
+            )}
+            {conn && view === "relations" && (
+              <Suspense fallback={<p className="muted pad">Loading diagram…</p>}>
+                <RelationsScreen key={conn.id} conn={conn} onOpen={(sql) => openInEditor(sql)} />
+              </Suspense>
             )}
             {!conn && !conns.loading && (
               <div className="empty-state">
