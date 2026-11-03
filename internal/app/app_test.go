@@ -77,6 +77,14 @@ func TestEndToEnd(t *testing.T) {
 		t.Fatal("failed export left a file behind")
 	}
 
+	sch, err := a.Schema(ctx, c.ID)
+	if err != nil || len(sch.Tables) != 1 || sch.Tables[0].Name != "t" || len(sch.Tables[0].Columns) != 2 {
+		t.Fatalf("schema = %+v, %v", sch, err)
+	}
+	if _, err := a.Schema(ctx, "missing"); err == nil {
+		t.Fatal("expected error for unknown connection")
+	}
+
 	hist, err := a.QueryHistory(ctx, c.ID, 0, 10)
 	if err != nil || len(hist) != 3 {
 		t.Fatalf("history = %+v, %v", hist, err)

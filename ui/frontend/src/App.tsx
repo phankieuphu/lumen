@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 
 import { type Connection, useBackend } from "./api";
 import type { EditorHandle } from "./components/SqlEditor";
@@ -10,12 +10,16 @@ import { ConnectionList } from "./screens/ConnectionList";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { QueryScreen } from "./screens/QueryScreen";
 
-type Tab = "query" | "history" | "audit";
+// React Flow and dagre load only when the diagram is first opened.
+const RelationsScreen = lazy(() => import("./screens/RelationsScreen").then((m) => ({ default: m.RelationsScreen })));
+
+type Tab = "query" | "history" | "relations" | "audit";
 type FormState = { conn?: Connection } | null;
 
 const tabs: { id: Tab; label: string; needsConn: boolean }[] = [
   { id: "query", label: "Query", needsConn: true },
   { id: "history", label: "History", needsConn: true },
+  { id: "relations", label: "Relations", needsConn: true },
   { id: "audit", label: "Audit log", needsConn: false },
 ];
 
@@ -88,6 +92,13 @@ export function App() {
         {conn && tab === "history" && (
           <div className="tab-panel">
             <HistoryScreen connId={conn.id} refresh={historyVersion} onOpen={openInEditor} />
+          </div>
+        )}
+        {conn && tab === "relations" && (
+          <div className="tab-panel">
+            <Suspense fallback={<p className="muted pad">Loading diagram…</p>}>
+              <RelationsScreen key={conn.id} conn={conn} onOpen={openInEditor} />
+            </Suspense>
           </div>
         )}
         {tab === "audit" && (

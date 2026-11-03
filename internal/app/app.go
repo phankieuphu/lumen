@@ -11,11 +11,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/conn"
 	"github.com/phankieuphu/lumen/internal/driver"
 	"github.com/phankieuphu/lumen/internal/query"
+	"github.com/phankieuphu/lumen/internal/schema"
 	"github.com/phankieuphu/lumen/internal/secret"
 	"github.com/phankieuphu/lumen/internal/store"
 
@@ -141,6 +143,23 @@ func (a *App) QueryHistory(ctx context.Context, connID string, beforeID int64, l
 		out[i] = historyDTO(h)
 	}
 	return out, nil
+}
+
+// schemaTimeout bounds a catalog read so a slow server cannot hang the
+// diagram view.
+const schemaTimeout = 30 * time.Second
+
+// Schema returns the tables, columns, and foreign keys of a connection's
+// database, for the relations diagram. It runs fixed catalog reads only,
+// so it is allowed on read-only and production connections.
+func (a *App) Schema(ctx context.Context, connID string) (schema.Schema, error) {
+	ctx, cancel := context.WithTimeout(ctx, schemaTimeout)
+	defer cancel()
+	c, _, err := a.conns.Get(ctx, connID)
+	if err != nil {
+		return schema.Schema{}, err
+	}
+	return schema.Read(ctx, c, schema.Limits{})
 }
 
 // ListConnections returns all saved profiles.
