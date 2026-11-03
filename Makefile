@@ -5,16 +5,23 @@ GOBIN  ?= $(shell go env GOPATH)/bin
 export LUMEN_TEST_POSTGRES_DSN ?= postgres://lumen:lumen@localhost:5432/lumen?sslmode=disable
 export LUMEN_TEST_MYSQL_DSN    ?= lumen:lumen@tcp(localhost:3306)/lumen
 
-.PHONY: help build run test test-int bench cover lint fmt fmt-check vuln check tools db-up db-down ui-dev ui-check
+.PHONY: help build app run package test test-int bench cover lint fmt fmt-check vuln check tools db-up db-down ui-dev ui-check ui-build
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-10s %s\n",$$1,$$2}'
 
-build: ## Build all packages and the binary
+build: ## Build the binary without the UI (fast; for Go work)
 	go build -trimpath -o bin/lumen ./cmd/lumen
 
-run: build ## Run the app
+app: ui-build ## Build the desktop app with the UI embedded
+	go build -tags production -trimpath -o bin/lumen ./cmd/lumen
+
+run: app ## Build and run the desktop app
 	./bin/lumen
+
+VERSION ?= dev
+package: ui-build ## Package for TARGET=linux-amd64|macos-universal|windows-amd64 into dist-release/
+	VERSION=$(VERSION) scripts/package.sh $(TARGET)
 
 test: ## Unit tests with the race detector
 	go test -race -count=1 ./...
@@ -54,6 +61,9 @@ ui-dev: $(UI)/node_modules ## Frontend dev server on a mock backend (no Go neede
 
 ui-check: $(UI)/node_modules ## Frontend typecheck, unit tests, and production build
 	cd $(UI) && npm run check
+
+ui-build: $(UI)/node_modules ## Build the UI into ui/shell/dist for embedding
+	cd $(UI) && npm run build
 
 tools: ## Install dev tools
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
