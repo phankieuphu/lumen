@@ -6,12 +6,13 @@
 | --- | --- | --- |
 | `cmd/lumen` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
 | `ui/shell` | The only Wails import; binds `app` methods and emits events | `app` |
-| `internal/app` | Façade the UI calls; maps domain types to DTOs | `query`, `conn`, `audit`, `store` |
+| `internal/app` | Façade the UI calls; maps domain types to DTOs | `query`, `conn`, `audit`, `schema`, `store` |
 | `internal/query` | Run / cancel by request ID, page streaming, classifier | `conn`, `audit`, `store`, `driver` |
 | `internal/conn` | Connection profiles, pool cache, read-only, env tags | `driver`, `store`, `secret` |
 | `internal/audit` | Append-only, hash-chained log; verify; CSV/JSON export | `store` |
 | `internal/store` | Local SQLite file, embedded numbered migrations | — |
 | `internal/secret` | OS keychain (and in-memory store for tests) | — |
+| `internal/schema` | Tables, columns, PKs, and foreign keys from catalog queries, bounded by table/column limits | `driver` |
 | `internal/sqlscan` | Dialect-aware lexer and statement splitter | — |
 | `internal/driver` | `Driver`, `Conn`, `Session`, `Rows` interfaces; registry | — |
 | `internal/driver/{postgres,mysql,sqlite}` | Engine implementations | `driver` |
@@ -52,10 +53,10 @@ engine-side cancel (`pg_cancel` request, `KILL QUERY <id>`, SQLite interrupt).
 | Path | Job |
 | --- | --- |
 | `src/api` | DTO types mirroring `internal/app/dto.go`, the `Backend` interface, Wails bindings, dev mock |
-| `src/lib` | Pure helpers: `ResultStore`, grid layout math, formatting (unit-tested) |
+| `src/lib` | Pure helpers: `ResultStore`, grid layout math, formatting, ER graph + dagre layout (`erd.ts`) (unit-tested) |
 | `src/hooks` | `useAsync`, `usePaged` (keyset paging), `useQueryRunner` (run / cancel / confirm) |
 | `src/components` | `VirtualGrid` and the grids built on it, `SqlEditor` (CodeMirror 6), shared UI |
-| `src/screens` | Connections, query, history, audit log |
+| `src/screens` | Connections, query, history, relations (React Flow, lazy-loaded), audit log |
 
 The UI calls `app.App` methods through `Call.ByName` and receives rows as
 `query:page` events. `npm run dev:mock` (or `make ui-dev`) runs it in a
