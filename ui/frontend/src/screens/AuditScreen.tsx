@@ -150,11 +150,12 @@ export function AuditScreen({ connections, onOpen }: Props) {
 }
 
 function AuditDetail({ entry, onOpen }: { entry: AuditEntry; onOpen: Props["onOpen"] }) {
+  const backend = useBackend();
   const [copied, setCopied] = useState(false);
   useEffect(() => setCopied(false), [entry]);
 
   const copy = () =>
-    void navigator.clipboard.writeText(entry.sql).then(
+    void backend.copyText(entry.sql).then(
       () => setCopied(true),
       () => setCopied(false),
     );

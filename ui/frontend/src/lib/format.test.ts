@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cellText, connTarget, dialectName, formatDuration, MAX_CELL_CHARS, oneLine } from "./format";
+import { cellText, connTarget, copyValue, dialectName, formatDuration, MAX_CELL_CHARS, oneLine, rowToTSV } from "./format";
 
 describe("cellText", () => {
   it.each([
@@ -48,5 +48,25 @@ describe("dialectName", () => {
   it("names known dialects and passes others through", () => {
     expect(dialectName("postgres")).toBe("PostgreSQL");
     expect(dialectName("oracle")).toBe("oracle");
+  });
+});
+
+describe("copyValue", () => {
+  it.each<[unknown, string]>([
+    [null, "NULL"],
+    ["text", "text"],
+    [42, "42"],
+    [true, "true"],
+    [{ tier: "gold" }, '{"tier":"gold"}'],
+    ["x".repeat(500), "x".repeat(500)],
+  ])("%o → %s", (v, want) => expect(copyValue(v)).toBe(want));
+});
+
+describe("rowToTSV", () => {
+  it("joins with tabs, leaves null empty, and quotes awkward fields", () => {
+    expect(rowToTSV([1, "a@b.com", null, { k: 1 }])).toBe('1\ta@b.com\t\t{"k":1}');
+    expect(rowToTSV(["tab\there", 'say "hi"', "two\nlines", '"quoted"'])).toBe(
+      '"tab\there"\tsay "hi"\t"two\nlines"\t"""quoted"""',
+    );
   });
 });

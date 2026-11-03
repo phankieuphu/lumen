@@ -20,6 +20,10 @@ interface Props {
   rowHeight?: number;
   selected?: number;
   onSelect?: (row: number) => void;
+  /** Called when a cell is clicked; the grid then shows a copy cursor. */
+  onCellClick?: (row: number, col: number) => void;
+  /** The cell to highlight, e.g. the one just copied. */
+  activeCell?: { row: number; col: number } | undefined;
   /** Called when the last rows come into view, to load the next page. */
   onEndReached?: () => void;
   empty?: ReactNode;
@@ -32,7 +36,19 @@ const OVERSCAN = 8;
  * window height, not on the row count. Rows have a fixed height; the header
  * is sticky inside the same scroller, so horizontal scrolling stays in sync.
  */
-export function VirtualGrid({ columns, rowCount, renderCell, version = 0, rowHeight = 32, selected, onSelect, onEndReached, empty }: Props) {
+export function VirtualGrid({
+  columns,
+  rowCount,
+  renderCell,
+  version = 0,
+  rowHeight = 32,
+  selected,
+  onSelect,
+  onCellClick,
+  activeCell,
+  onEndReached,
+  empty,
+}: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState(0);
   const [first, setFirst] = useState(0);
@@ -74,12 +90,14 @@ export function VirtualGrid({ columns, rowCount, renderCell, version = 0, rowHei
         version={version}
         selected={i === selected}
         onSelect={onSelect}
+        onCellClick={onCellClick}
+        activeCol={activeCell?.row === i ? activeCell.col : undefined}
       />,
     );
   }
 
   return (
-    <div className="grid" ref={scroller} onScroll={onScroll} role="grid" aria-rowcount={rowCount}>
+    <div className={onCellClick ? "grid copyable" : "grid"} ref={scroller} onScroll={onScroll} role="grid" aria-rowcount={rowCount}>
       <div className="grid-head" style={{ gridTemplateColumns: template, width }} role="row">
         {columns.map((c) => (
           <div key={c.key} className="grid-cell grid-th" role="columnheader" title={c.hint ? `${c.title} (${c.hint})` : c.title}>
@@ -109,10 +127,13 @@ interface RowProps {
   version: number;
   selected: boolean;
   onSelect: ((row: number) => void) | undefined;
+  onCellClick: ((row: number, col: number) => void) | undefined;
+  /** The highlighted cell's column in this row, if any. */
+  activeCol: number | undefined;
 }
 
 // Memoized so scrolling by one row renders one new row, not the whole window.
-const GridRow = memo(function GridRow({ index, top, height, template, columns, renderCell, selected, onSelect }: RowProps) {
+const GridRow = memo(function GridRow({ index, top, height, template, columns, renderCell, selected, onSelect, onCellClick, activeCol }: RowProps) {
   return (
     <div
       className={selected ? "grid-row selected" : "grid-row"}
@@ -123,7 +144,12 @@ const GridRow = memo(function GridRow({ index, top, height, template, columns, r
       onClick={onSelect && (() => onSelect(index))}
     >
       {columns.map((c, col) => (
-        <div key={c.key} className={c.align === "end" ? "grid-cell end" : "grid-cell"} role="gridcell">
+        <div
+          key={c.key}
+          className={`grid-cell${c.align === "end" ? " end" : ""}${col === activeCol ? " active" : ""}`}
+          role="gridcell"
+          onClick={onCellClick && (() => onCellClick(index, col))}
+        >
           {renderCell(index, col)}
         </div>
       ))}
