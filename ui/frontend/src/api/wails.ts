@@ -14,6 +14,17 @@ const exportFilters: Record<ExportFormat, { DisplayName: string; Pattern: string
   json: { DisplayName: "JSON", Pattern: "*.json" },
 };
 
+/**
+ * notYet rejects calls for features whose Go side is not built. The screens
+ * show the message instead of data, so nothing pretends to work.
+ */
+const notYet = (feature: string, phase: number) => () =>
+  Promise.reject(new Error(`${feature} is not available yet: it arrives in phase ${phase} of docs/plan.md.`));
+
+const advisor = notYet("The slow-query advisor", 4);
+const monitor = notYet("The monitor", 5);
+const ai = notYet("AI", 3);
+
 export const wailsBackend: Backend = {
   listConnections: () => call("ListConnections"),
   createConnection: (input) => call("CreateConnection", input),
@@ -38,4 +49,16 @@ export const wailsBackend: Backend = {
     await call("AuditExport", path, format, filter);
     return true;
   },
+
+  advisorList: advisor,
+  advisorDetail: advisor,
+
+  monitorSnapshot: monitor,
+  monitorEndSession: monitor,
+  monitorSetAlert: monitor,
+
+  aiProviders: ai,
+  aiSettings: ai,
+  saveAISettings: ai,
+  aiPreview: ai,
 };

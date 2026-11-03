@@ -44,3 +44,14 @@ export function oneLine(sql: string, max = MAX_CELL_CHARS): string {
   const s = sql.replace(/\s+/g, " ").trim();
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
+
+/** connTarget is where a connection points: host/database, or the SQLite file. */
+export function connTarget(c: { dialect: string; host: string; database: string }): string {
+  if (c.dialect === "sqlite") return c.database;
+  return c.database ? `${c.host}/${c.database}` : c.host;
+}
+
+const dialectNames: Record<string, string> = { postgres: "PostgreSQL", mysql: "MySQL", sqlite: "SQLite" };
+
+/** dialectName is the product name shown for a dialect id. */
+export const dialectName = (d: string): string => dialectNames[d] ?? d;

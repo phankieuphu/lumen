@@ -1,12 +1,15 @@
 // In-memory backend for `npm run dev` in a plain browser. It is loaded only
 // in development builds (see index.ts) and never ships in dist/.
+import { createMockFeatures } from "./mockFeatures";
 import type { AuditEntry, Backend, Connection, DbSchema, ForeignKey, HistoryEntry, Kind, Page, Row, Status, Summary, Table } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
 
 const classify = (sql: string): Kind => {
-  const word = /^\s*(\w+)/.exec(sql)?.[1]?.toLowerCase() ?? "";
+  // Skip leading comments, as the real classifier does.
+  const body = sql.replace(/^(\s*(--[^\n]*(\n|$)|\/\*[\s\S]*?\*\/))*/, "");
+  const word = /^\s*(\w+)/.exec(body)?.[1]?.toLowerCase() ?? "";
   if (["select", "with", "show", "explain", "values"].includes(word)) return "read";
   if (["create", "alter", "drop", "grant", "revoke", "truncate"].includes(word)) return "schema";
   if (["begin", "commit", "rollback", "set"].includes(word)) return "session";
@@ -86,6 +89,7 @@ export function createMockBackend(): Backend {
   };
 
   return {
+    ...createMockFeatures(() => conns),
     listConnections: async () => [...conns],
     createConnection: async ({ password: _, ...input }) => add(input),
     async updateConnection(id, { password: _, ...input }) {
