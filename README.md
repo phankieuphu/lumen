@@ -7,6 +7,37 @@ explain/debug tools, an AI assistant, a slow-query advisor, and a lock monitor.
 - **Shell:** Wails v3, isolated in `ui/shell`
 - **Frontend:** React + TypeScript (`ui/frontend`)
 
+![Query screen: SQL editor with a streamed, virtualized result grid](docs/images/query.png)
+
+## Screens
+
+| Screen | What it does |
+| --- | --- |
+| **Connections** (sidebar) | Saved PostgreSQL / MySQL / SQLite connections, tagged `dev` / `staging` / `prod`; add, edit, test, delete |
+| **Query** | CodeMirror SQL editor; run with Ctrl/⌘+Enter, cancel mid-stream; rows arrive in pages into a virtualized grid with a row cap. Writes on `prod` ask for confirmation |
+| **History** | Past statements for the selected connection with status, kind, time, and row count; click one to reopen it in the editor |
+| **Audit log** | Append-only, hash-chained log of writes and schema changes; filter by connection and time, verify the chain, export CSV or JSON |
+
+<table>
+  <tr>
+    <td><img src="docs/images/connection.png" alt="New connection form" /></td>
+    <td><img src="docs/images/history.png" alt="Query history" /></td>
+  </tr>
+  <tr>
+    <td align="center">Connection form</td>
+    <td align="center">History</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/images/audit.png" alt="Audit log with chain verification and export" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">Audit log</td>
+  </tr>
+</table>
+
+Screenshots are taken from `make ui-dev`, which runs the frontend in a browser
+against an in-memory mock backend.
+
 ## Quick start
 
 ```sh
@@ -15,6 +46,8 @@ make db-up      # PostgreSQL 17 + MySQL 8.4 in Docker
 make test       # unit tests
 make test-int   # integration tests against the containers
 make lint
+make ui-dev     # frontend on a mock backend at http://localhost:5173 (no Go needed)
+make ui-check   # frontend typecheck, tests, and production build
 ```
 
 ## Docs
