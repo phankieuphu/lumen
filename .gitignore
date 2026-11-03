@@ -1,6 +1,8 @@
 # Binaries
 /bin/
 /build/bin/
+/build/pkg/
+/dist-release/
 *.exe
 *.test
 *.out
@@ -21,7 +23,11 @@ go.work.sum
 
 # Frontend
 node_modules/
+# The frontend builds into ui/shell/dist, which the shell embeds. The
+# placeholder keeps go:embed working in a checkout without a UI build.
 ui/frontend/dist/
+ui/shell/dist/*
+!ui/shell/dist/.gitkeep
 
 # Editors / OS
 .idea/
