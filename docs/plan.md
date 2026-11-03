@@ -68,7 +68,7 @@ Tick tasks off as they are done; each list ends with its phase gate.
 
 ### Phase 1 · Core client + audit log
 
-- [ ] Repo, Go module, Wails v3 + React skeleton, CI that builds on three systems
+- [x] Repo, Go module, Wails v3 + React skeleton, CI that builds on three systems
 - [x] `store`: local SQLite file, numbered migrations, `settings` and `app_sessions`
 - [x] `driver` interfaces and PostgreSQL driver (`pgx`)
 - [x] MySQL and SQLite drivers

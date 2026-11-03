@@ -64,7 +64,14 @@ phase 3, the advisor in phase 4, the monitor in phase 5. Until then the desktop 
 Screenshots are taken from `make ui-dev`, which runs the frontend in a browser
 against an in-memory mock backend.
 
-## Quick start
+## Install
+
+Download lumen for macOS, Windows, or Linux from the
+[Releases page](https://github.com/phankieuphu/lumen/releases). The
+[install and usage guide](docs/install.md) covers first launch on each system,
+building from source, and how to use each screen.
+
+## Develop
 
 ```sh
 make tools      # install golangci-lint, gofumpt, govulncheck
@@ -72,6 +79,7 @@ make db-up      # PostgreSQL 17 + MySQL 8.4 in Docker
 make test       # unit tests
 make test-int   # integration tests against the containers
 make lint
+make app        # build the desktop app with the UI embedded, into bin/lumen
 make ui-dev     # frontend on a mock backend at http://localhost:5173 (no Go needed)
 make ui-check   # frontend typecheck, tests, and production build
 ```
@@ -80,6 +88,7 @@ make ui-check   # frontend typecheck, tests, and production build
 
 | Doc | What it covers |
 | --- | --- |
+| [docs/install.md](docs/install.md) | Install, first launch, and using lumen |
 | [docs/plan.md](docs/plan.md) | Phases, milestones, tasks |
 | [docs/architecture.md](docs/architecture.md) | Package layout and data flow |
 | [docs/conventions.md](docs/conventions.md) | Code, commit, branch, and review rules |
