@@ -1,12 +1,44 @@
 import { MySQL, PostgreSQL, SQLite, sql, type SQLDialect } from "@codemirror/lang-sql";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { Compartment, EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
+import { tags as t } from "@lezer/highlight";
 import { basicSetup } from "codemirror";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 
 import type { Dialect } from "../api";
 
 const dialects: Record<Dialect, SQLDialect> = { postgres: PostgreSQL, mysql: MySQL, sqlite: SQLite };
+
+// Colours come from the CSS tokens in styles.css, so the editor follows the app theme.
+const theme = EditorView.theme(
+  {
+    "&": { height: "100%", color: "var(--fg)", backgroundColor: "var(--bg)" },
+    ".cm-scroller": { fontFamily: "var(--mono)", lineHeight: "22px" },
+    ".cm-content": { caretColor: "var(--fg)", padding: "10px 0" },
+    ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--fg)" },
+    ".cm-gutters": { backgroundColor: "var(--bg)", color: "var(--faint)", border: "none" },
+    ".cm-lineNumbers .cm-gutterElement": { padding: "0 14px 0 16px", minWidth: "48px" },
+    ".cm-activeLine": { backgroundColor: "var(--warn-wash)" },
+    ".cm-activeLineGutter": { backgroundColor: "var(--warn-wash)", color: "var(--warn)" },
+    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": { backgroundColor: "var(--select)" },
+    ".cm-matchingBracket": { backgroundColor: "var(--active)", outline: "1px solid var(--line)" },
+    ".cm-tooltip": { backgroundColor: "var(--raised)", border: "1px solid var(--line)", color: "var(--fg)" },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--active)", color: "var(--fg)" },
+    ".cm-panels": { backgroundColor: "var(--panel)", color: "var(--fg)" },
+    ".cm-foldPlaceholder": { backgroundColor: "var(--raised)", border: "1px solid var(--line)", color: "var(--muted)" },
+  },
+  { dark: true },
+);
+
+const highlight = HighlightStyle.define([
+  { tag: [t.keyword, t.operatorKeyword, t.modifier], color: "var(--info)" },
+  { tag: [t.function(t.variableName), t.standard(t.name), t.typeName], color: "var(--accent)" },
+  { tag: [t.string, t.special(t.string)], color: "var(--warn)" },
+  { tag: [t.number, t.bool, t.null], color: "var(--ok)" },
+  { tag: [t.comment, t.lineComment, t.blockComment], color: "var(--faint)", fontStyle: "italic" },
+  { tag: [t.special(t.name), t.labelName], color: "var(--ai)" },
+]);
 
 export interface EditorHandle {
   /** sql returns the selection, or the whole text when nothing is selected. */
@@ -47,7 +79,8 @@ export function SqlEditor({ dialect, onRun, ref }: Props) {
           ),
           basicSetup,
           language.current.of(sql({ dialect: dialects[dialect], upperCaseKeywords: true })),
-          EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { fontFamily: "var(--mono)" } }),
+          theme,
+          syntaxHighlighting(highlight),
         ],
       }),
     });

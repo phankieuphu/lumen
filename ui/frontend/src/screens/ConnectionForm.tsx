@@ -1,9 +1,23 @@
 import { type FormEvent, useState } from "react";
 
-import { type Connection, type ConnectionInput, type Dialect, errorMessage, useBackend } from "../api";
-import { ErrorText, Field } from "../components/ui";
+import { type Connection, type ConnectionInput, type Dialect, type Env, errorMessage, useBackend } from "../api";
+import { Icon } from "../components/icons";
+import { Banner, Confirm, Field, Segmented, SwitchRow } from "../components/ui";
+import { dialectName } from "../lib/format";
 
 const defaultPort: Record<Dialect, number> = { postgres: 5432, mysql: 3306, sqlite: 0 };
+
+const envOptions: { value: Env; label: string }[] = [
+  { value: "dev", label: "Dev" },
+  { value: "staging", label: "Staging" },
+  { value: "prod", label: "Production" },
+];
+
+const envNote: Record<Env, string> = {
+  dev: "Development: no extra checks.",
+  staging: "Staging: marked amber wherever the connection appears.",
+  prod: "Production: marked red, and statements that write or change schema need confirmation before they run.",
+};
 
 const blank: ConnectionInput = {
   name: "",
@@ -27,21 +41,23 @@ function toInput(c: Connection | undefined): ConnectionInput {
 interface Props {
   conn?: Connection;
   onSaved: (c: Connection) => void;
-  onCancel: () => void;
+  onDeleted: () => void;
+  onUse: (c: Connection) => void;
 }
 
 /**
  * ConnectionForm creates or edits a profile. When editing, an empty password
- * keeps the stored one; "Remove stored password" clears it.
+ * keeps the stored one; "Forget stored password" clears it.
  */
-export function ConnectionForm({ conn, onSaved, onCancel }: Props) {
+export function ConnectionForm({ conn, onSaved, onDeleted, onUse }: Props) {
   const backend = useBackend();
   const [form, setForm] = useState(() => toInput(conn));
   const [password, setPassword] = useState("");
   const [clearPassword, setClearPassword] = useState(false);
-  const [busy, setBusy] = useState<"save" | "test" | null>(null);
+  const [busy, setBusy] = useState<"save" | "test" | "delete" | null>(null);
   const [error, setError] = useState<string>();
   const [tested, setTested] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const set = <K extends keyof ConnectionInput>(key: K, value: ConnectionInput[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -56,13 +72,16 @@ export function ConnectionForm({ conn, onSaved, onCancel }: Props) {
     return password || !conn ? { ...form, password } : form;
   };
 
-  const act = async (kind: "save" | "test") => {
+  const act = async (kind: "save" | "test" | "delete") => {
     setBusy(kind);
     setError(undefined);
     try {
       if (kind === "test") {
         await backend.testConnection(input());
         setTested(true);
+      } else if (kind === "delete") {
+        await backend.deleteConnection(conn!.id);
+        onDeleted();
       } else {
         onSaved(conn ? await backend.updateConnection(conn.id, input()) : await backend.createConnection(input()));
       }
@@ -80,91 +99,131 @@ export function ConnectionForm({ conn, onSaved, onCancel }: Props) {
 
   const network = form.dialect !== "sqlite";
   return (
-    <form className="panel form" onSubmit={submit}>
-      <h2>{conn ? `Edit ${conn.name}` : "New connection"}</h2>
-      <div className="form-grid">
-        <Field label="Name" wide>
-          <input value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={100} autoFocus />
-        </Field>
-        <Field label="Engine">
-          <select value={form.dialect} onChange={(e) => setDialect(e.target.value as Dialect)}>
-            <option value="postgres">PostgreSQL</option>
-            <option value="mysql">MySQL</option>
-            <option value="sqlite">SQLite</option>
-          </select>
-        </Field>
-        <Field label="Environment">
-          <select value={form.env} onChange={(e) => set("env", e.target.value as ConnectionInput["env"])}>
-            <option value="dev">dev</option>
-            <option value="staging">staging</option>
-            <option value="prod">prod</option>
-          </select>
-        </Field>
+    <form className={`card form env-${form.env}`} onSubmit={submit} aria-label={conn ? `Edit ${conn.name}` : "New connection"}>
+      <header className="card-head">
+        <h2>{conn ? conn.name : "New connection"}</h2>
+        <span className="chip">{dialectName(form.dialect)}</span>
+        <span className="spacer" />
         {network && (
-          <>
-            <Field label="Host">
-              <input value={form.host} onChange={(e) => set("host", e.target.value)} required />
-            </Field>
-            <Field label="Port">
-              <input type="number" min={0} max={65535} value={form.port} onChange={(e) => set("port", e.target.valueAsNumber || 0)} />
-            </Field>
-            <Field label="User">
-              <input value={form.user} onChange={(e) => set("user", e.target.value)} autoComplete="off" />
-            </Field>
-            <Field label="Password">
-              <input
-                type="password"
-                value={password}
-                disabled={clearPassword}
-                placeholder={conn ? "unchanged" : ""}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setTested(false);
-                }}
-                autoComplete="new-password"
-              />
-            </Field>
-          </>
+          <span className="muted small-text with-icon">
+            <Icon name="lock" size={13} /> Passwords are kept in the OS keychain
+          </span>
         )}
-        <Field label={network ? "Database" : "Database file"} wide={!network}>
-          <input value={form.database} onChange={(e) => set("database", e.target.value)} required={!network} />
-        </Field>
-        {network && (
-          <Field label="TLS">
-            <select value={form.tls} onChange={(e) => set("tls", e.target.value as ConnectionInput["tls"])}>
-              <option value="disable">disable</option>
-              <option value="prefer">prefer</option>
-              <option value="require">require</option>
-              <option value="verify-full">verify-full</option>
+      </header>
+      <div className="card-body">
+        <div className="form-grid">
+          <Field label="Name">
+            <input value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={100} autoFocus={!conn} />
+          </Field>
+          <Field label="Engine">
+            <select value={form.dialect} onChange={(e) => setDialect(e.target.value as Dialect)}>
+              <option value="postgres">PostgreSQL</option>
+              <option value="mysql">MySQL</option>
+              <option value="sqlite">SQLite</option>
             </select>
           </Field>
-        )}
-        <Field label="Max connections">
-          <input type="number" min={0} max={64} value={form.maxConns} onChange={(e) => set("maxConns", e.target.valueAsNumber || 0)} />
-        </Field>
+          {network && (
+            <>
+              <Field label="Host">
+                <input className="mono" value={form.host} onChange={(e) => set("host", e.target.value)} required />
+              </Field>
+              <Field label="Port">
+                <input className="mono" type="number" min={0} max={65535} value={form.port} onChange={(e) => set("port", e.target.valueAsNumber || 0)} />
+              </Field>
+              <Field label="User">
+                <input className="mono" value={form.user} onChange={(e) => set("user", e.target.value)} autoComplete="off" />
+              </Field>
+              <Field label="Password">
+                <input
+                  type="password"
+                  value={password}
+                  disabled={clearPassword}
+                  placeholder={conn ? "Saved in keychain; leave blank to keep" : ""}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setTested(false);
+                  }}
+                  autoComplete="new-password"
+                />
+              </Field>
+            </>
+          )}
+          <Field label={network ? "Database" : "Database file"} wide={!network}>
+            <input className="mono" value={form.database} onChange={(e) => set("database", e.target.value)} required={!network} />
+          </Field>
+          {network && (
+            <Field label="TLS">
+              <select value={form.tls} onChange={(e) => set("tls", e.target.value as ConnectionInput["tls"])}>
+                <option value="disable">disable</option>
+                <option value="prefer">prefer</option>
+                <option value="require">require</option>
+                <option value="verify-full">verify-full</option>
+              </select>
+            </Field>
+          )}
+          <Field label="Max connections">
+            <input className="mono" type="number" min={0} max={64} value={form.maxConns} onChange={(e) => set("maxConns", e.target.valueAsNumber || 0)} />
+          </Field>
+        </div>
+        <div className="env-field">
+          <span className="field-label">Environment</span>
+          <div className="env-row">
+            <Segmented label="Environment" value={form.env} options={envOptions} onChange={(v) => set("env", v)} />
+            <p className={form.env === "prod" ? "env-note danger-text" : "env-note muted"}>{envNote[form.env]}</p>
+          </div>
+        </div>
       </div>
-      <label className="check">
-        <input type="checkbox" checked={form.readOnly} onChange={(e) => set("readOnly", e.target.checked)} /> Read-only
-      </label>
-      {conn && network && (
-        <label className="check">
-          <input type="checkbox" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} /> Remove stored password
-        </label>
-      )}
-      <ErrorText error={error} />
-      {tested && <p className="ok">Connection works.</p>}
-      <div className="actions">
+      <div className="switches">
+        <SwitchRow
+          label="Read-only"
+          help="Blocks every statement that writes. Recommended for production."
+          checked={form.readOnly}
+          onChange={(v) => set("readOnly", v)}
+        />
+        {conn && network && (
+          <SwitchRow
+            label="Forget stored password"
+            help="Removes the password from the keychain when you save."
+            checked={clearPassword}
+            onChange={setClearPassword}
+          />
+        )}
+      </div>
+      {error && <Banner tone="danger">{error}</Banner>}
+      {tested && <Banner tone="ok">Connection works.</Banner>}
+      <footer className="card-foot">
         <button type="button" onClick={() => void act("test")} disabled={busy !== null}>
-          {busy === "test" ? "Testing…" : "Test"}
-        </button>
-        <span className="spacer" />
-        <button type="button" onClick={onCancel}>
-          Cancel
+          {busy === "test" ? "Testing…" : "Test connection"}
         </button>
         <button type="submit" className="primary" disabled={busy !== null}>
           {busy === "save" ? "Saving…" : "Save"}
         </button>
-      </div>
+        {conn && (
+          <button type="button" onClick={() => onUse(conn)}>
+            Open in editor
+          </button>
+        )}
+        <span className="spacer" />
+        {conn && (
+          <button type="button" className="danger" onClick={() => setDeleting(true)} disabled={busy !== null}>
+            Delete
+          </button>
+        )}
+      </footer>
+      {deleting && conn && (
+        <Confirm
+          title="Delete connection"
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => {
+            setDeleting(false);
+            void act("delete");
+          }}
+          onCancel={() => setDeleting(false)}
+        >
+          Delete <strong>{conn.name}</strong> and its stored password? Its audit entries are kept.
+        </Confirm>
+      )}
     </form>
   );
 }
