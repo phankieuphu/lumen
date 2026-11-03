@@ -7,24 +7,26 @@ explain/debug tools, an AI assistant, a slow-query advisor, and a lock monitor.
 - **Shell:** Wails v3, isolated in `ui/shell`
 - **Frontend:** React + TypeScript (`ui/frontend`)
 
-![Query screen: SQL editor with a streamed, virtualized result grid](docs/images/query.png)
+![Query editor: connections sidebar, SQL editor, and a streamed, virtualized result grid](docs/images/query.png)
 
 ## Screens
 
+A dark UI in IBM Plex with an icon rail on the left for switching screens.
+
 | Screen | What it does |
 | --- | --- |
-| **Connections** (sidebar) | Saved PostgreSQL / MySQL / SQLite connections, tagged `dev` / `staging` / `prod`; add, edit, test, delete |
-| **Query** | CodeMirror SQL editor; run with Ctrl/⌘+Enter, cancel mid-stream; rows arrive in pages into a virtualized grid with a row cap. Writes on `prod` ask for confirmation |
+| **Query editor** | Connections sidebar; CodeMirror SQL editor; run with Ctrl/⌘+Enter and cancel mid-stream. Rows arrive in pages into a virtualized grid with a row cap. Production connections are marked red, and writes on them ask for confirmation |
 | **History** | Past statements for the selected connection with status, kind, time, and row count; click one to reopen it in the editor |
-| **Audit log** | Append-only, hash-chained log of writes and schema changes; filter by connection and time, verify the chain, export CSV or JSON |
+| **Connections** | Saved PostgreSQL / MySQL / SQLite connections tagged Dev / Staging / Production; add, edit, test, delete. Passwords live in the OS keychain |
+| **Audit log** | Append-only, hash-chained log of writes and schema changes; filter by connection and time, inspect an entry, verify the chain, export CSV or JSON |
 
 <table>
   <tr>
-    <td><img src="docs/images/connection.png" alt="New connection form" /></td>
+    <td><img src="docs/images/connection.png" alt="Connection editor" /></td>
     <td><img src="docs/images/history.png" alt="Query history" /></td>
   </tr>
   <tr>
-    <td align="center">Connection form</td>
+    <td align="center">Connections</td>
     <td align="center">History</td>
   </tr>
   <tr>
