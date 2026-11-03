@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import type { Column } from "../api";
-import { cellText, formatCount } from "../lib/format";
+import { cellText, copyValue, formatCount, rowToTSV } from "../lib/format";
 import { columnWidths } from "../lib/grid";
 import type { ResultStore } from "../lib/resultStore";
 import { type GridColumn, VirtualGrid } from "./VirtualGrid";
@@ -28,8 +28,17 @@ function gridColumns(columns: readonly Column[], sample: readonly unknown[][], r
   ];
 }
 
+interface Props {
+  store: ResultStore;
+  /**
+   * Called with the text to copy when a cell is clicked: the cell's full
+   * value, or the whole row as tab-separated text from the # column.
+   */
+  onCopy?: (text: string, what: string) => void;
+}
+
 /** ResultGrid shows a streaming query result from a ResultStore. */
-export function ResultGrid({ store }: { store: ResultStore }) {
+export function ResultGrid({ store, onCopy }: Props) {
   const version = useSyncExternalStore(store.subscribe, store.getVersion);
   const { columns, rowCount } = store;
 
@@ -51,6 +60,30 @@ export function ResultGrid({ store }: { store: ResultStore }) {
     [store],
   );
 
+  // The last copied cell stays highlighted until the next result.
+  const [active, setActive] = useState<{ row: number; col: number }>();
+  useEffect(() => setActive(undefined), [columns]);
+
+  const copyCell = useCallback(
+    (row: number, col: number) => {
+      const values = store.row(row);
+      if (!values || !onCopy) return;
+      setActive({ row, col });
+      if (col === 0) onCopy(rowToTSV(values), `row ${formatCount(row + 1)}`);
+      else onCopy(copyValue(values[col - 1]), `${columns[col - 1]?.name ?? "value"}, row ${formatCount(row + 1)}`);
+    },
+    [store, columns, onCopy],
+  );
+
   if (columns.length === 0) return null;
-  return <VirtualGrid columns={cols} rowCount={rowCount} renderCell={renderCell} version={version} />;
+  return (
+    <VirtualGrid
+      columns={cols}
+      rowCount={rowCount}
+      renderCell={renderCell}
+      version={version}
+      onCellClick={onCopy && copyCell}
+      activeCell={active}
+    />
+  );
 }

@@ -69,10 +69,19 @@ sudo dnf install gtk4 webkitgtk6.0
 sudo pacman -S gtk4 webkitgtk-6.0
 ```
 
+Unpack it and run the installer. It puts `lumen` in `~/.local/bin` and adds
+it to your app menu with its icon; no `sudo` needed:
+
 ```bash
 tar -xzf lumen-*-linux-amd64.tar.gz
-./lumen-*-linux-amd64/lumen
 ```
+
+```bash
+./lumen-*-linux-amd64/install.sh
+```
+
+Run `install.sh --remove` to uninstall. You can also skip the installer and
+run `./lumen-*-linux-amd64/lumen` directly; the window then has no icon.
 
 Saved passwords go to the Secret Service keychain (GNOME Keyring or KWallet),
 which desktop sessions normally run. Without one, connections that need a
@@ -126,6 +135,10 @@ connects to a database.
 3. Rows stream into the grid in pages, so large results appear quickly. A
    result stops at 100,000 rows; refine the query to see more.
 4. **Cancel** stops a running query on the server.
+5. **Click a cell** in the results to copy its value. Click the **#** column
+   to copy the whole row as tab-separated text, which pastes into a
+   spreadsheet as one row. The copied cell is outlined, and a short "Copied"
+   note appears above the grid.
 
 ### History, relations, and the audit log
 
@@ -162,7 +175,8 @@ Command-line options:
 
 ### Uninstall
 
-Delete the app (or `lumen.exe` / the unpacked folder). To remove your data
+Delete the app (or `lumen.exe` / the unpacked folder; on Linux run
+`install.sh --remove` if you used the installer). To remove your data
 too, delete the folder in the table above. Saved passwords appear in your
 keychain under the service name `lumen`.
 

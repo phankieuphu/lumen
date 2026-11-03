@@ -1,6 +1,6 @@
-import type { RefObject } from "react";
+import { type RefObject, useCallback, useEffect, useState } from "react";
 
-import type { Connection } from "../api";
+import { type Connection, errorMessage, useBackend } from "../api";
 import { Elapsed } from "../components/Elapsed";
 import { Icon } from "../components/icons";
 import { ResultGrid } from "../components/ResultGrid";
@@ -19,7 +19,25 @@ interface Props {
 }
 
 export function QueryScreen({ conn, editorRef, onRan }: Props) {
+  const backend = useBackend();
   const { store, state, run, cancel, confirm, dismiss } = useQueryRunner(conn.id, onRan);
+  const [copied, setCopied] = useState<{ text: string; failed?: boolean }>();
+
+  const copy = useCallback(
+    (text: string, what: string) => {
+      backend.copyText(text).then(
+        () => setCopied({ text: `Copied ${what}` }),
+        (err: unknown) => setCopied({ text: `Copy failed: ${errorMessage(err)}`, failed: true }),
+      );
+    },
+    [backend],
+  );
+  // The notice hides itself; the timer is cleared if another copy replaces it.
+  useEffect(() => {
+    if (!copied) return;
+    const id = setTimeout(() => setCopied(undefined), 1800);
+    return () => clearTimeout(id);
+  }, [copied]);
   const running = state.phase === "running";
   const { summary } = state;
 
@@ -55,6 +73,14 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           </>
         )}
         <span className="spacer" />
+        {copied ? (
+          <span className={copied.failed ? "copy-note danger-text" : "copy-note ok-text"} role="status">
+            <Icon name={copied.failed ? "alert" : "check"} size={13} strokeWidth={2} /> {copied.text}
+          </span>
+        ) : (
+          summary?.kind === "read" &&
+          summary.rowCount > 0 && <span className="muted small-text">Click a cell to copy it, or # for the whole row</span>
+        )}
         {summary && (
           <span className="mono muted">
             {summary.kind === "read"
@@ -66,7 +92,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
         )}
       </div>
       <div className="result">
-        <ResultGrid store={store} />
+        <ResultGrid store={store} onCopy={copy} />
       </div>
       <footer className="statusbar">
         <span className="statusbar-item">
