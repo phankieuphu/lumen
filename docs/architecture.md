@@ -54,6 +54,15 @@ engine-side cancel (`pg_cancel` request, `KILL QUERY <id>`, SQLite interrupt).
 work without Node; such a binary shows a "UI not built" page. `make app`
 builds both.
 
+Icons: `assets/icon/lumen.svg` is the logo on the macOS icon grid, and
+`lumen-tile.svg` is the same tile without margins for small sizes. The
+`.icns`, `.ico`, and PNGs next to them are rendered from these SVGs and
+committed, so builds need no image tools. The shell embeds `ui/shell/icon.png`
+(window and taskbar icon on Windows); macOS takes the Dock icon from the
+bundle, and Linux GTK 4 from `assets/linux/io.github.phankieuphu.lumen.desktop`,
+which `install.sh` in the Linux tarball installs. The UI uses the tile as its
+favicon and rail logo.
+
 Releases: `scripts/package.sh` builds and packs one target (Linux tarball,
 universal macOS `.app` zip, Windows zip). CI runs it for all three on every
 pull request; `.github/workflows/release.yml` runs it on a `v*` tag and

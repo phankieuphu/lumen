@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon/lumen.svg" alt="lumen logo" width="128" height="128"></p>
+
 # lumen
 
 A desktop SQL client for PostgreSQL, MySQL, and SQLite with an audit log, query
