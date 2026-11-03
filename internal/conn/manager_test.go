@@ -189,3 +189,31 @@ func TestGetFailureIsRetried(t *testing.T) {
 		t.Fatalf("unknown id: %v", err)
 	}
 }
+
+// brokenKeychain fails every call, like a Linux desktop without Secret Service.
+type brokenKeychain struct{}
+
+func (brokenKeychain) Get(string) (string, error) { return "", errors.New("keychain unavailable") }
+func (brokenKeychain) Set(string, string) error   { return errors.New("keychain unavailable") }
+func (brokenKeychain) Delete(string) error        { return errors.New("keychain unavailable") }
+
+func TestSQLiteOpensWithoutKeychain(t *testing.T) {
+	s, err := store.OpenMemory(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(s, brokenKeychain{})
+	t.Cleanup(func() {
+		_ = m.CloseAll()
+		_ = s.Close()
+	})
+	ctx := t.Context()
+
+	p, err := m.Create(ctx, sqliteProfile(t, "local"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.Get(ctx, p.ID); err != nil {
+		t.Fatalf("SQLite open needed the keychain: %v", err)
+	}
+}
