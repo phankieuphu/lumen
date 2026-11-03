@@ -28,6 +28,13 @@ const paths = {
   ),
   check: <path d="M5 12l5 5 9-10" />,
   alert: <path d="M12 4l9 16H3l9-16zM12 10v4M12 17.5v.01" />,
+  relations: (
+    <>
+      <rect x="3" y="4" width="7" height="6" rx="1.5" />
+      <rect x="14" y="14" width="7" height="6" rx="1.5" />
+      <path d="M10 7h3a2 2 0 0 1 2 2v5" />
+    </>
+  ),
   bolt: <path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z" />,
   pulse: <path d="M3 12h4l3-8 4 16 3-8h4" />,
   sliders: (

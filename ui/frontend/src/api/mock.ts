@@ -1,7 +1,7 @@
 // In-memory backend for `npm run dev` in a plain browser. It is loaded only
 // in development builds (see index.ts) and never ships in dist/.
 import { createMockFeatures } from "./mockFeatures";
-import type { AuditEntry, Backend, Connection, HistoryEntry, Kind, Page, Row, Status, Summary } from "./types";
+import type { AuditEntry, Backend, Connection, DbSchema, ForeignKey, HistoryEntry, Kind, Page, Row, Status, Summary, Table } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
@@ -15,6 +15,54 @@ const classify = (sql: string): Kind => {
   if (["begin", "commit", "rollback", "set"].includes(word)) return "session";
   return "write";
 };
+
+// A small shop schema for the relations diagram: two schemas, a view, a
+// self reference, a composite key, and tables with no relations.
+function mockSchema(conn: Connection | undefined): DbSchema {
+  const main = conn?.dialect === "postgres" ? "public" : conn?.dialect === "sqlite" ? "main" : (conn?.database ?? "app");
+  const c = (name: string, type: string, flags = "") => ({ name, type, nullable: flags.includes("?"), primaryKey: flags.includes("pk") });
+  const t = (name: string, columns: Table["columns"], schema = main, kind: Table["kind"] = "table"): Table => ({ schema, name, kind, columns });
+  const tables: Table[] = [
+    t("customers", [c("id", "bigint", "pk"), c("email", "text"), c("name", "text"), c("referred_by", "bigint", "?"), c("created_at", "timestamptz")]),
+    t("addresses", [c("id", "bigint", "pk"), c("customer_id", "bigint"), c("line1", "text"), c("city", "text"), c("country", "char(2)")]),
+    t("categories", [c("id", "int", "pk"), c("parent_id", "int", "?"), c("name", "text")]),
+    t("products", [c("sku", "text", "pk"), c("category_id", "int", "?"), c("name", "text"), c("price", "numeric(12,2)")]),
+    t("orders", [c("id", "bigint", "pk"), c("customer_id", "bigint"), c("shipping_address_id", "bigint", "?"), c("status", "text"), c("placed_at", "timestamptz")]),
+    t("order_lines", [c("order_id", "bigint", "pk"), c("line_no", "int", "pk"), c("sku", "text"), c("qty", "int"), c("unit_price", "numeric(12,2)")]),
+    t("payments", [c("id", "bigint", "pk"), c("order_id", "bigint"), c("amount", "numeric(12,2)"), c("provider", "text")]),
+    t("shipments", [c("id", "bigint", "pk"), c("order_id", "bigint"), c("line_no", "int"), c("carrier", "text"), c("shipped_at", "timestamptz", "?")]),
+    t("reviews", [c("id", "bigint", "pk"), c("sku", "text"), c("customer_id", "bigint"), c("rating", "smallint"), c("body", "text", "?")]),
+    t("inventory", [c("sku", "text", "pk"), c("warehouse_id", "int", "pk"), c("on_hand", "int")]),
+    t("warehouses", [c("id", "int", "pk"), c("name", "text"), c("country", "char(2)")]),
+    t("settings", [c("key", "text", "pk"), c("value", "jsonb", "?")]),
+    t("schema_migrations", [c("version", "bigint", "pk"), c("applied_at", "timestamptz")]),
+    t("order_totals", [c("order_id", "bigint"), c("total", "numeric")], main, "view"),
+  ];
+  const fk = (name: string, from: string, fromColumns: string[], to: string, toColumns: string[], fromSchema = main, toSchema = main): ForeignKey => ({
+    name, fromSchema, fromTable: from, fromColumns, toSchema, toTable: to, toColumns,
+  });
+  const foreignKeys = [
+    fk("customers_referred_by_fkey", "customers", ["referred_by"], "customers", ["id"]),
+    fk("addresses_customer_id_fkey", "addresses", ["customer_id"], "customers", ["id"]),
+    fk("categories_parent_id_fkey", "categories", ["parent_id"], "categories", ["id"]),
+    fk("products_category_id_fkey", "products", ["category_id"], "categories", ["id"]),
+    fk("orders_customer_id_fkey", "orders", ["customer_id"], "customers", ["id"]),
+    fk("orders_shipping_address_id_fkey", "orders", ["shipping_address_id"], "addresses", ["id"]),
+    fk("order_lines_order_id_fkey", "order_lines", ["order_id"], "orders", ["id"]),
+    fk("order_lines_sku_fkey", "order_lines", ["sku"], "products", ["sku"]),
+    fk("payments_order_id_fkey", "payments", ["order_id"], "orders", ["id"]),
+    fk("shipments_line_fkey", "shipments", ["order_id", "line_no"], "order_lines", ["order_id", "line_no"]),
+    fk("reviews_sku_fkey", "reviews", ["sku"], "products", ["sku"]),
+    fk("reviews_customer_id_fkey", "reviews", ["customer_id"], "customers", ["id"]),
+    fk("inventory_sku_fkey", "inventory", ["sku"], "products", ["sku"]),
+    fk("inventory_warehouse_id_fkey", "inventory", ["warehouse_id"], "warehouses", ["id"]),
+  ];
+  if (conn?.dialect === "postgres") {
+    tables.push(t("events", [c("id", "bigint", "pk"), c("customer_id", "bigint", "?"), c("kind", "text"), c("at", "timestamptz")], "audit"));
+    foreignKeys.push(fk("events_customer_id_fkey", "events", ["customer_id"], "customers", ["id"], "audit", main));
+  }
+  return { dialect: conn?.dialect ?? "postgres", tables, foreignKeys, truncated: false };
+}
 
 export function createMockBackend(): Backend {
   let nextId = 1;
@@ -108,6 +156,11 @@ export function createMockBackend(): Backend {
     },
     queryHistory: async (connId, beforeId, limit) =>
       history.filter((h) => h.connId === connId && (beforeId <= 0 || h.id < beforeId)).slice(0, limit),
+
+    async schema(connId) {
+      await sleep(150);
+      return mockSchema(conns.find((c) => c.id === connId));
+    },
 
     auditList: async ({ connId, afterSeq = 0, limit = 200 }) =>
       audit.filter((e) => e.seq > afterSeq && (!connId || e.connId === connId)).slice(0, limit),

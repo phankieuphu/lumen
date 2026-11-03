@@ -111,6 +111,40 @@ export interface VerifyResult {
 
 export type ExportFormat = "csv" | "json";
 
+// internal/schema types, for the relations diagram.
+
+export interface SchemaColumn {
+  name: string;
+  type: string;
+  nullable: boolean;
+  primaryKey: boolean;
+}
+
+export interface Table {
+  schema: string;
+  name: string;
+  kind: "table" | "view";
+  columns: SchemaColumn[];
+}
+
+export interface ForeignKey {
+  name: string;
+  fromSchema: string;
+  fromTable: string;
+  fromColumns: string[];
+  toSchema: string;
+  toTable: string;
+  toColumns: string[];
+}
+
+export interface DbSchema {
+  dialect: Dialect;
+  tables: Table[];
+  foreignKeys: ForeignKey[];
+  /** A table or column limit stopped the read early. */
+  truncated: boolean;
+}
+
 // Slow-query advisor (phase 4). No Go side yet; see wails.ts.
 
 export type AdviceState = "fix-verified" | "rewrite-verified" | "no-fix" | "pending";
@@ -253,6 +287,8 @@ export interface Backend {
   /** Subscribes to every query page; returns an unsubscribe function. */
   onPage(fn: (page: Page) => void): () => void;
   queryHistory(connId: string, beforeId: number, limit: number): Promise<HistoryEntry[]>;
+  /** Tables, columns, and foreign keys of the connection's database. */
+  schema(connId: string): Promise<DbSchema>;
 
   auditList(filter: AuditFilter): Promise<AuditEntry[]>;
   auditVerify(): Promise<VerifyResult>;
