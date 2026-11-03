@@ -17,23 +17,40 @@ A dark UI in IBM Plex with an icon rail on the left for switching screens.
 | --- | --- |
 | **Query editor** | Connections sidebar; CodeMirror SQL editor; run with Ctrl/⌘+Enter and cancel mid-stream. Rows arrive in pages into a virtualized grid with a row cap. Production connections are marked red, and writes on them ask for confirmation |
 | **History** | Past statements for the selected connection with status, kind, time, and row count; click one to reopen it in the editor |
+| **Slow-query advisor** ¹ | Slowest queries by share of database time; the current plan with its most expensive step, an AI-suggested index or rewrite, and the plan cost before and after. A fix opens in the editor, so nothing runs until you run it |
+| **Monitor** ¹ | Live sessions, connections, lock waits, cache hit rate, and the longest query, polled every 5 seconds; charts for connections and transactions per second; ending a session; alert rules |
 | **Connections** | Saved PostgreSQL / MySQL / SQLite connections tagged Dev / Staging / Production; add, edit, test, delete. Passwords live in the OS keychain |
 | **Audit log** | Append-only, hash-chained log of writes and schema changes; filter by connection and time, inspect an entry, verify the chain, export CSV or JSON |
+| **AI settings** ¹ | Provider (Anthropic, OpenAI-compatible, Ollama), a model per task, privacy switches, and a preview of the exact text a request sends |
+
+¹ The screen is built, but its backend comes later in [docs/plan.md](docs/plan.md): AI in
+phase 3, the advisor in phase 4, the monitor in phase 5. Until then the desktop app shows
+"not available yet" on these screens, and `make ui-dev` fills them with sample data.
 
 <table>
   <tr>
+    <td><img src="docs/images/advisor.png" alt="Slow-query advisor with plan and verified index advice" /></td>
+    <td><img src="docs/images/monitor.png" alt="Monitor with live stats, charts, sessions, and alert rules" /></td>
+  </tr>
+  <tr>
+    <td align="center">Slow-query advisor</td>
+    <td align="center">Monitor</td>
+  </tr>
+  <tr>
     <td><img src="docs/images/connection.png" alt="Connection editor" /></td>
-    <td><img src="docs/images/history.png" alt="Query history" /></td>
+    <td><img src="docs/images/audit.png" alt="Audit log with chain verification and export" /></td>
   </tr>
   <tr>
     <td align="center">Connections</td>
+    <td align="center">Audit log</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/history.png" alt="Query history" /></td>
+    <td><img src="docs/images/settings.png" alt="AI settings with the what-is-sent preview" /></td>
+  </tr>
+  <tr>
     <td align="center">History</td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/images/audit.png" alt="Audit log with chain verification and export" /></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">Audit log</td>
+    <td align="center">AI settings</td>
   </tr>
 </table>
 

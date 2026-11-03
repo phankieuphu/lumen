@@ -55,12 +55,19 @@ engine-side cancel (`pg_cancel` request, `KILL QUERY <id>`, SQLite interrupt).
 | `src/lib` | Pure helpers: `ResultStore`, grid layout math, formatting (unit-tested) |
 | `src/hooks` | `useAsync`, `usePaged` (keyset paging), `useQueryRunner` (run / cancel / confirm) |
 | `src/components` | `VirtualGrid` and the grids built on it, `SqlEditor` (CodeMirror 6), icons, shared UI |
-| `src/screens` | Query editor, history, connections, audit log |
+| `src/screens` | Query editor, history, slow-query advisor, monitor, connections, audit log, AI settings |
 | `src/styles.css` | Theme tokens (`:root` custom properties) and all styling; the editor theme reads the same tokens |
 
 The layout is an icon rail plus one screen. The query editor stays mounted
 while hidden, so its text and last result survive switching screens. IBM
 Plex Sans and Mono are bundled from `@fontsource` so the app works offline.
+
+The advisor, monitor, and AI settings screens are typed against `Backend`
+methods whose Go side is not built yet (phases 3–5). The Wails backend rejects
+those calls with a "not available yet" message that the screens show; the dev
+mock (`src/api/mockFeatures.ts`) returns sample data. The monitor polls on an
+interval owned by an effect, which stops it on pause, on another connection,
+and on unmount.
 
 The UI calls `app.App` methods through `Call.ByName` and receives rows as
 `query:page` events. `npm run dev:mock` (or `make ui-dev`) runs it in a
