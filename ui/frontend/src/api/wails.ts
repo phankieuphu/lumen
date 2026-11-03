@@ -2,8 +2,8 @@ import { Call, Dialogs, Events } from "@wailsio/runtime";
 
 import type { AuditFilter, Backend, ExportFormat, Page } from "./types";
 
-// Bound methods of *app.App, as the shell registers them.
-const APP = "github.com/phankieuphu/lumen/internal/app.App.";
+// Bound methods of *app.API, as the shell registers them.
+const APP = "github.com/phankieuphu/lumen/internal/app.API.";
 // app.EventQueryPage.
 const EVENT_QUERY_PAGE = "query:page";
 

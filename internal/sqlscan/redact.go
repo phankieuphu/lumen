@@ -33,7 +33,7 @@ func RedactSecrets(src string, d Dialect) string {
 		case t.Is("PASSWORD") && (first.Is("SET") || first.Is("ALTER") || first.Is("CREATE") || first.Is("GRANT")):
 			sawPassword = true
 		}
-		afterAssign := sawPassword && prev[0].Kind == Punct && prev[0].Text == "="
+		afterAssign := sawPassword && prev[0].Kind == Punct && prev[0].Text == "=" //nolint:gosec // G602 false positive: prev is a [3]Token array with constant indexes
 		if t.Kind == String && (afterAssign || isSecretContext(prev)) {
 			if !changed {
 				b.Grow(len(src))
@@ -43,7 +43,7 @@ func RedactSecrets(src string, d Dialect) string {
 			b.WriteString(Redacted)
 			last = t.Pos + len(t.Text)
 		}
-		prev[2], prev[1], prev[0] = prev[1], prev[0], t
+		prev[2], prev[1], prev[0] = prev[1], prev[0], t //nolint:gosec // G602 false positive: prev is a [3]Token array with constant indexes
 	}
 	if !changed {
 		return src
@@ -63,7 +63,7 @@ func isSecretContext(prev [3]Token) bool {
 	switch {
 	case prev[0].Is("PASSWORD"):
 		return true
-	case prev[0].Kind == Punct && prev[0].Text == "=" && prev[1].Is("PASSWORD"):
+	case prev[0].Kind == Punct && prev[0].Text == "=" && prev[1].Is("PASSWORD"): //nolint:gosec // G602 false positive: prev is a [3]Token array with constant indexes
 		return true
 	case prev[0].Is("BY") && (prev[1].Is("IDENTIFIED") || prev[2].Is("WITH") || prev[2].Is("IDENTIFIED")):
 		return true

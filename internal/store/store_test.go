@@ -9,7 +9,13 @@ import (
 )
 
 func TestOpenCreatesPrivateFileAndMigrates(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "nested ?#", "lumen.db")
+	// Characters that need escaping in the SQLite URI; Windows forbids '?'
+	// in file names, so it checks '#' and '%' instead.
+	dir := "nested ?#"
+	if runtime.GOOS == "windows" {
+		dir = "nested #%"
+	}
+	path := filepath.Join(t.TempDir(), dir, "lumen.db")
 	s, err := Open(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)

@@ -23,9 +23,14 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: Install GTK 4 and WebKitGTK 6 headers (Wails, ui/shell)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.6
+          version: v2.6.2
+          # The prebuilt binary is compiled with an older Go than go.mod
+          # targets and refuses to run; build it with this job's Go instead.
+          install-mode: goinstall
 
   test:
     runs-on: ubuntu-latest
@@ -34,6 +39,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: Install GTK 4 and WebKitGTK 6 headers (Wails, ui/shell)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
       - run: go test -race -count=1 -coverprofile=coverage.out ./...
 
   integration:
@@ -68,6 +75,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: Install GTK 4 and WebKitGTK 6 headers (Wails, ui/shell)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
       - run: go test -race -count=1 -tags=integration ./...
 
   vuln:
@@ -77,6 +86,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: Install GTK 4 and WebKitGTK 6 headers (Wails, ui/shell)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   frontend:
@@ -95,17 +106,32 @@ jobs:
       - run: npm run check
 
   build:
-    # The Wails desktop build replaces this job once ui/frontend lands.
-    needs: [lint, test]
+    # The desktop app on all three systems, packaged as a release would be.
+    needs: [lint, test, frontend]
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - { os: ubuntu-latest, target: linux-amd64 }
+          - { os: macos-latest, target: macos-universal }
+          - { os: windows-latest, target: windows-amd64 }
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: go build -trimpath ./...
-      - run: go test -count=1 ./internal/...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/frontend/package-lock.json
+      - if: runner.os == 'Linux'
+        name: Install GTK 4 and WebKitGTK 6 headers
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+      - run: make ui-build
+      - run: go test -count=1 ./internal/... ./ui/...
+      - run: VERSION=ci-${GITHUB_SHA::7} scripts/package.sh ${{ matrix.target }}
