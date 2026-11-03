@@ -5,8 +5,8 @@
 | Package | Job | Depends on |
 | --- | --- | --- |
 | `cmd/lumen` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
-| `ui/shell` | The only Wails import; binds `app` methods and emits events | `app` |
-| `internal/app` | Façade the UI calls; maps domain types to DTOs | `query`, `conn`, `audit`, `schema`, `store` |
+| `ui/shell` | The only Wails import; opens the window, serves the embedded UI, binds `app.API`, and emits events | `app` |
+| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `store` |
 | `internal/query` | Run / cancel by request ID, page streaming, classifier | `conn`, `audit`, `store`, `driver` |
 | `internal/conn` | Connection profiles, pool cache, read-only, env tags | `driver`, `store`, `secret` |
 | `internal/audit` | Append-only, hash-chained log; verify; CSV/JSON export | `store` |
@@ -48,7 +48,17 @@ engine-side cancel (`pg_cancel` request, `KILL QUERY <id>`, SQLite interrupt).
 
 ## Frontend
 
-`ui/frontend` is React + TypeScript built with Vite; the shell embeds `dist/`.
+`ui/frontend` is React + TypeScript built with Vite. `npm run build` (or
+`make ui-build`) writes to `ui/shell/dist`, which `ui/shell` embeds with
+`go:embed`. A checkout holds only a placeholder there, so Go builds and tests
+work without Node; such a binary shows a "UI not built" page. `make app`
+builds both.
+
+Releases: `scripts/package.sh` builds and packs one target (Linux tarball,
+universal macOS `.app` zip, Windows zip). CI runs it for all three on every
+pull request; `.github/workflows/release.yml` runs it on a `v*` tag and
+publishes a GitHub release with `SHA256SUMS`, using
+`docs/releases/<tag>.md` as the notes when present.
 
 | Path | Job |
 | --- | --- |
