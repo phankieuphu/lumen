@@ -24,12 +24,18 @@ lists a checksum for each file.
 ### macOS
 
 1. Unzip the download and move `lumen.app` to **Applications**.
-2. The first time, **right-click** `lumen.app` and choose **Open**, then
-   **Open** again. macOS asks because the app is not notarized yet. After
-   that it opens normally.
+2. Open it. The first time, macOS says *Apple could not verify "lumen" is
+   free of malware…* because the app is not notarized yet. Click **Done**
+   (not "Move to Trash").
+3. Open **System Settings → Privacy & Security**, scroll to **Security**, and
+   next to *"lumen" was blocked…* click **Open Anyway**. Enter your password
+   and click **Open**. After that it opens normally, until the next update.
 
-If macOS says the app "is damaged and can't be opened", clear the download
-flag once:
+On macOS 14 and earlier you can instead right-click `lumen.app`, choose
+**Open**, then **Open** again. macOS 15 and later no longer offer that.
+
+Or clear the download flag from Terminal, which also fixes "lumen is
+damaged and can't be opened":
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/lumen.app
