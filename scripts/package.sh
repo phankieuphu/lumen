@@ -30,6 +30,8 @@ linux-amd64)
 	mkdir -p "$work/$name"
 	GOOS=linux GOARCH=amd64 build -ldflags "$ldflags" -o "$work/$name/lumen"
 	cp LICENSE "$work/$name/"
+	cp assets/icon/lumen-256.png "$work/$name/lumen.png"
+	cp assets/linux/io.github.phankieuphu.lumen.desktop assets/linux/install.sh "$work/$name/"
 	tar -C "$work" -czf "$out/$name.tar.gz" "$name"
 	;;
 
@@ -40,7 +42,8 @@ macos-universal)
 	CC="clang -arch arm64" GOOS=darwin GOARCH=arm64 build -ldflags "$ldflags" -o "$work/lumen-arm64"
 	CC="clang -arch x86_64" GOOS=darwin GOARCH=amd64 build -ldflags "$ldflags" -o "$work/lumen-amd64"
 	app="$work/lumen.app"
-	mkdir -p "$app/Contents/MacOS"
+	mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+	cp assets/icon/lumen.icns "$app/Contents/Resources/lumen.icns"
 	lipo -create -output "$app/Contents/MacOS/lumen" "$work/lumen-arm64" "$work/lumen-amd64"
 	cat >"$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -51,6 +54,7 @@ macos-universal)
 	<key>CFBundleDisplayName</key><string>lumen</string>
 	<key>CFBundleIdentifier</key><string>io.github.phankieuphu.lumen</string>
 	<key>CFBundleExecutable</key><string>lumen</string>
+	<key>CFBundleIconFile</key><string>lumen</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
 	<key>CFBundleShortVersionString</key><string>${version#v}</string>
 	<key>CFBundleVersion</key><string>${version#v}</string>
