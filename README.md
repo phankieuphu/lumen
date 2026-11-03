@@ -16,6 +16,7 @@ explain/debug tools, an AI assistant, a slow-query advisor, and a lock monitor.
 | **Connections** (sidebar) | Saved PostgreSQL / MySQL / SQLite connections, tagged `dev` / `staging` / `prod`; add, edit, test, delete |
 | **Query** | CodeMirror SQL editor; run with Ctrl/⌘+Enter, cancel mid-stream; rows arrive in pages into a virtualized grid with a row cap. Writes on `prod` ask for confirmation |
 | **History** | Past statements for the selected connection with status, kind, time, and row count; click one to reopen it in the editor |
+| **Relations** | Interactive ER diagram (React Flow): tables with PK/FK columns, crow's-foot links between joined columns, auto layout left→right or top→bottom, drag, zoom, minimap. Click a table to highlight its relations and see references; focus on a table and its neighbours; find tables; filter by schema; keys-only view; double-click to query; copy as Mermaid |
 | **Audit log** | Append-only, hash-chained log of writes and schema changes; filter by connection and time, verify the chain, export CSV or JSON |
 
 <table>
@@ -26,6 +27,12 @@ explain/debug tools, an AI assistant, a slow-query advisor, and a lock monitor.
   <tr>
     <td align="center">Connection form</td>
     <td align="center">History</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/images/relations.png" alt="Relations: ER diagram of tables and foreign keys" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">Relations</td>
   </tr>
   <tr>
     <td colspan="2"><img src="docs/images/audit.png" alt="Audit log with chain verification and export" /></td>
