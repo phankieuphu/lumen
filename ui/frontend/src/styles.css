@@ -363,15 +363,10 @@ button:focus-visible {
 }
 
 .rail-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 32px;
   height: 32px;
   margin-bottom: 10px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--accent-fg);
 }
 
 .rail-item {
