@@ -1,5 +1,6 @@
 // In-memory backend for `npm run dev` in a plain browser. It is loaded only
 // in development builds (see index.ts) and never ships in dist/.
+import { createMockFeatures } from "./mockFeatures";
 import type { AuditEntry, Backend, Connection, HistoryEntry, Kind, Page, Row, Status, Summary } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -40,6 +41,7 @@ export function createMockBackend(): Backend {
   };
 
   return {
+    ...createMockFeatures(() => conns),
     listConnections: async () => [...conns],
     createConnection: async ({ password: _, ...input }) => add(input),
     async updateConnection(id, { password: _, ...input }) {

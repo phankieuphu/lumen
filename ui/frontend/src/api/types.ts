@@ -111,6 +111,134 @@ export interface VerifyResult {
 
 export type ExportFormat = "csv" | "json";
 
+// Slow-query advisor (phase 4). No Go side yet; see wails.ts.
+
+export type AdviceState = "fix-verified" | "rewrite-verified" | "no-fix" | "pending";
+
+export interface AdvisorFilter {
+  /** Look-back window in hours. */
+  windowHours: number;
+  /** Queries with a lower mean time are left out. */
+  minMeanMs: number;
+}
+
+export interface SlowQuery {
+  id: string;
+  /** A short human name for the query, e.g. "Revenue per customer". */
+  title: string;
+  sql: string;
+  tables: string[];
+  meanMs: number;
+  calls: number;
+  /** Share of total database time, 0–100. */
+  sharePct: number;
+  state: AdviceState;
+}
+
+export interface PlanNode {
+  label: string;
+  depth: number;
+  cost: number;
+  /** Share of the plan's cost, 0–100. */
+  sharePct: number;
+}
+
+export interface Advice {
+  kind: "index" | "rewrite";
+  title: string;
+  explanation: string;
+  sql: string;
+  /** How the fix was checked, e.g. with a hypothetical index. */
+  verifiedBy: string;
+  costBefore: number;
+  costAfter: number;
+}
+
+export interface SlowQueryDetail extends SlowQuery {
+  planSource: string;
+  plan: PlanNode[];
+  /** null when no safe fix was found. */
+  advice: Advice | null;
+  /** Why there is no advice, when advice is null. */
+  noAdviceReason?: string;
+}
+
+// Monitor (phase 5).
+
+export type SessionState = "active" | "idle" | "idle in transaction" | "waiting on lock";
+
+export interface DbSession {
+  pid: number;
+  user: string;
+  state: SessionState;
+  /** Seconds in the current state; null when idle. */
+  seconds: number | null;
+  query: string;
+  blockedBy?: number;
+}
+
+export interface AlertRule {
+  id: string;
+  label: string;
+  enabled: boolean;
+  firing: boolean;
+}
+
+export interface MonitorSnapshot {
+  at: string;
+  activeSessions: number;
+  connectionsUsed: number;
+  maxConnections: number;
+  waitingOnLocks: number;
+  /** The session holding the lock others wait on. */
+  rootBlocker?: number;
+  cacheHitPct: number;
+  longest?: { pid: number; seconds: number; limitSeconds: number };
+  /** One sample per step, oldest first, covering the requested range. */
+  series: { connections: number[]; tps: number[] };
+  sessions: DbSession[];
+  totalSessions: number;
+  alerts: AlertRule[];
+  /** The firing alert to show, if any. */
+  firing?: { message: string; pid?: number };
+}
+
+// AI settings (phase 3).
+
+export type ProviderId = "anthropic" | "openai" | "ollama";
+export type AITask = "inline" | "textToSql" | "fixError" | "advise";
+
+export interface AIProvider {
+  id: ProviderId;
+  name: string;
+  /** Runs on this computer; nothing leaves it. */
+  local: boolean;
+  note: string;
+  /** Whether an API key is stored, or none is needed. */
+  ready: boolean;
+  keyNote: string;
+  models: string[];
+}
+
+export interface AISettings {
+  provider: ProviderId;
+  models: Record<AITask, string>;
+  sampleRows: boolean;
+  maskLiterals: boolean;
+  inlineCompletion: boolean;
+}
+
+export interface PreviewLine {
+  text: string;
+  tone?: "head" | "muted" | "warn";
+}
+
+export interface AIPreview {
+  destination: string;
+  local: boolean;
+  lines: PreviewLine[];
+}
+
 /** Backend is the app façade (internal/app.App) as the UI sees it. */
 export interface Backend {
   listConnections(): Promise<Connection[]>;
@@ -130,4 +258,18 @@ export interface Backend {
   auditVerify(): Promise<VerifyResult>;
   /** Asks the user for a file and exports to it; resolves false if they cancelled. */
   auditExport(format: ExportFormat, filter: AuditFilter): Promise<boolean>;
+
+  advisorList(connId: string, filter: AdvisorFilter): Promise<SlowQuery[]>;
+  advisorDetail(connId: string, id: string): Promise<SlowQueryDetail>;
+
+  monitorSnapshot(connId: string, rangeMinutes: number): Promise<MonitorSnapshot>;
+  /** Ends a database session (pg_terminate_backend / KILL); audited. */
+  monitorEndSession(connId: string, pid: number): Promise<void>;
+  monitorSetAlert(connId: string, ruleId: string, enabled: boolean): Promise<void>;
+
+  aiProviders(): Promise<AIProvider[]>;
+  aiSettings(): Promise<AISettings>;
+  saveAISettings(settings: AISettings): Promise<AISettings>;
+  /** The exact text a request for this task would send with these settings. */
+  aiPreview(task: "advise" | "inline", settings: AISettings): Promise<AIPreview>;
 }
