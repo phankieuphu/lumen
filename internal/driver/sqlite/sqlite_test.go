@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"errors"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/phankieuphu/lumen/internal/driver"
@@ -15,7 +16,13 @@ const sleepSQL = `WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c
 SELECT MAX(x) FROM c`
 
 func TestConformance(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "conformance db?#.sqlite")
+	// Characters that need escaping in the SQLite URI; Windows forbids '?'
+	// in file names, so it checks '#' and '%' instead.
+	name := "conformance db?#.sqlite"
+	if runtime.GOOS == "windows" {
+		name = "conformance db#%.sqlite"
+	}
+	path := filepath.Join(t.TempDir(), name)
 	drivertest.Run(t, drivertest.Engine{
 		Dialect:  driver.SQLite,
 		Config:   driver.Config{Database: path},
