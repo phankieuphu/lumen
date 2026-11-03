@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cellText, formatDuration, MAX_CELL_CHARS, oneLine } from "./format";
+import { cellText, connTarget, dialectName, formatDuration, MAX_CELL_CHARS, oneLine } from "./format";
 
 describe("cellText", () => {
   it.each([
@@ -33,5 +33,20 @@ describe("formatDuration", () => {
 describe("oneLine", () => {
   it("collapses whitespace and newlines", () => {
     expect(oneLine("SELECT *\n  FROM t\n\tWHERE x = 1")).toBe("SELECT * FROM t WHERE x = 1");
+  });
+});
+
+describe("connTarget", () => {
+  it.each([
+    [{ dialect: "postgres", host: "db", database: "shop" }, "db/shop"],
+    [{ dialect: "mysql", host: "db", database: "" }, "db"],
+    [{ dialect: "sqlite", host: "", database: "/data/app.db" }, "/data/app.db"],
+  ])("%o → %s", (c, want) => expect(connTarget(c)).toBe(want));
+});
+
+describe("dialectName", () => {
+  it("names known dialects and passes others through", () => {
+    expect(dialectName("postgres")).toBe("PostgreSQL");
+    expect(dialectName("oracle")).toBe("oracle");
   });
 });
