@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=lumen
+GenericName=SQL Client
+Comment=Desktop SQL client for PostgreSQL, MySQL, and SQLite
+Exec=lumen
+Icon=io.github.phankieuphu.lumen
+Terminal=false
+Categories=Development;Database;
+StartupWMClass=io.github.phankieuphu.lumen

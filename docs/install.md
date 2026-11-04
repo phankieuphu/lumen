@@ -24,12 +24,18 @@ lists a checksum for each file.
 ### macOS
 
 1. Unzip the download and move `lumen.app` to **Applications**.
-2. The first time, **right-click** `lumen.app` and choose **Open**, then
-   **Open** again. macOS asks because the app is not notarized yet. After
-   that it opens normally.
+2. Open it. The first time, macOS says *Apple could not verify "lumen" is
+   free of malware…* because the app is not notarized yet. Click **Done**
+   (not "Move to Trash").
+3. Open **System Settings → Privacy & Security**, scroll to **Security**, and
+   next to *"lumen" was blocked…* click **Open Anyway**. Enter your password
+   and click **Open**. After that it opens normally, until the next update.
 
-If macOS says the app "is damaged and can't be opened", clear the download
-flag once:
+On macOS 14 and earlier you can instead right-click `lumen.app`, choose
+**Open**, then **Open** again. macOS 15 and later no longer offer that.
+
+Or clear the download flag from Terminal, which also fixes "lumen is
+damaged and can't be opened":
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/lumen.app
@@ -63,10 +69,19 @@ sudo dnf install gtk4 webkitgtk6.0
 sudo pacman -S gtk4 webkitgtk-6.0
 ```
 
+Unpack it and run the installer. It puts `lumen` in `~/.local/bin` and adds
+it to your app menu with its icon; no `sudo` needed:
+
 ```bash
 tar -xzf lumen-*-linux-amd64.tar.gz
-./lumen-*-linux-amd64/lumen
 ```
+
+```bash
+./lumen-*-linux-amd64/install.sh
+```
+
+Run `install.sh --remove` to uninstall. You can also skip the installer and
+run `./lumen-*-linux-amd64/lumen` directly; the window then has no icon.
 
 Saved passwords go to the Secret Service keychain (GNOME Keyring or KWallet),
 which desktop sessions normally run. Without one, connections that need a
@@ -120,6 +135,10 @@ connects to a database.
 3. Rows stream into the grid in pages, so large results appear quickly. A
    result stops at 100,000 rows; refine the query to see more.
 4. **Cancel** stops a running query on the server.
+5. **Click a cell** in the results to copy its value. Click the **#** column
+   to copy the whole row as tab-separated text, which pastes into a
+   spreadsheet as one row. The copied cell is outlined, and a short "Copied"
+   note appears above the grid.
 
 ### History, relations, and the audit log
 
@@ -156,7 +175,8 @@ Command-line options:
 
 ### Uninstall
 
-Delete the app (or `lumen.exe` / the unpacked folder). To remove your data
+Delete the app (or `lumen.exe` / the unpacked folder; on Linux run
+`install.sh --remove` if you used the installer). To remove your data
 too, delete the folder in the table above. Saved passwords appear in your
 keychain under the service name `lumen`.
 

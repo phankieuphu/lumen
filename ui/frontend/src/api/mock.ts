@@ -90,6 +90,7 @@ export function createMockBackend(): Backend {
 
   return {
     ...createMockFeatures(() => conns),
+    copyText: (text) => navigator.clipboard.writeText(text),
     listConnections: async () => [...conns],
     createConnection: async ({ password: _, ...input }) => add(input),
     async updateConnection(id, { password: _, ...input }) {

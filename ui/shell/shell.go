@@ -23,6 +23,12 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
+// icon is the window and taskbar icon (assets/icon/lumen-tile.svg at
+// 512px). macOS takes the Dock icon from the app bundle instead.
+//
+//go:embed icon.png
+var icon []byte
+
 // Window size and colour; the colour matches the UI's --bg so the window
 // does not flash white while the page loads.
 const (
@@ -31,6 +37,10 @@ const (
 )
 
 var background = application.NewRGB(0x12, 0x15, 0x1a)
+
+// appID identifies the app to the desktop: the macOS bundle identifier and
+// the Linux application id (scripts/package.sh, assets/linux).
+const appID = "io.github.phankieuphu.lumen"
 
 // Run opens the window and blocks until it closes or ctx is cancelled.
 func Run(ctx context.Context, a *app.App, log *slog.Logger) error {
@@ -42,12 +52,16 @@ func Run(ctx context.Context, a *app.App, log *slog.Logger) error {
 	w := application.New(application.Options{
 		Name:        "lumen",
 		Description: "Desktop SQL client",
+		Icon:        icon,
 		// Wails logs every bound call's arguments at debug level, and those
 		// include connection passwords. Its logger never goes below Warn.
 		Logger:   slog.New(minLevel{h: log.Handler(), min: slog.LevelWarn}),
 		Services: []application.Service{application.NewService(app.NewAPI(a))},
 		Assets:   application.AssetOptions{Handler: assetHandler(assets)},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		// Matches assets/linux/<id>.desktop, which gives the window its icon:
+		// GTK 4 has no API to set one from Icon.
+		Linux: application.LinuxOptions{ApplicationID: appID},
 	})
 	a.SetEmitter(emitter{w})
 

@@ -148,6 +148,7 @@ interface DiagramProps {
 }
 
 function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
+  const backend = useBackend();
   const flow = useReactFlow<TableNode, BuiltInEdge>();
   const schemas = useMemo(() => [...new Set(schema.tables.map((t) => t.schema))].sort(), [schema]);
   const [schemaFilter, setSchemaFilter] = useState("");
@@ -268,7 +269,7 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
 
   const copyMermaid = async () => {
     try {
-      await navigator.clipboard.writeText(toMermaid(graph));
+      await backend.copyText(toMermaid(graph));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

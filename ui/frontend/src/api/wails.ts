@@ -1,4 +1,4 @@
-import { Call, Dialogs, Events } from "@wailsio/runtime";
+import { Call, Clipboard, Dialogs, Events } from "@wailsio/runtime";
 
 import type { AuditFilter, Backend, ExportFormat, Page } from "./types";
 
@@ -49,6 +49,9 @@ export const wailsBackend: Backend = {
     await call("AuditExport", path, format, filter);
     return true;
   },
+
+  // The native clipboard: the web view may refuse navigator.clipboard.
+  copyText: (text) => Clipboard.SetText(text),
 
   advisorList: advisor,
   advisorDetail: advisor,
