@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- lumen app icon. The tile follows the macOS icon grid: 824px inside a 1024px canvas. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#12151A"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="#2C333D" stroke-width="8"/>
+  <!-- database: three stacked discs -->
+  <g fill="none" stroke="#4FC9B4" stroke-width="54" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="470" cy="392" rx="196" ry="72"/>
+    <path d="M274 392v300c0 40 88 72 196 72s196-32 196-72V392"/>
+    <path d="M274 542c0 40 88 72 196 72s196-32 196-72"/>
+  </g>
+  <!-- the light: a four-point spark -->
+  <path d="M742 196c12 66 34 88 100 100c-66 12-88 34-100 100c-12-66-34-88-100-100c66-12 88-34 100-100z" fill="#F0CD8C"/>
+</svg>

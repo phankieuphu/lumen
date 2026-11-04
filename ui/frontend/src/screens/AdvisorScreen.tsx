@@ -131,13 +131,14 @@ function QueryCard({ q, current, onSelect }: { q: SlowQuery; current: boolean; o
 const steps = ["Context collected", "Fix suggested", "Tested with EXPLAIN"];
 
 function Detail({ q, conn, onOpen, onSkip }: { q: SlowQueryDetail; conn: Connection; onOpen: (sql: string) => void; onSkip: () => void }) {
+  const backend = useBackend();
   const [copied, setCopied] = useState(false);
   const hottest = Math.max(...q.plan.map((n) => n.sharePct));
   const { advice } = q;
   const saved = advice ? Math.round((1 - advice.costAfter / advice.costBefore) * 100) : 0;
 
   const copy = (sql: string) =>
-    void navigator.clipboard.writeText(sql).then(
+    void backend.copyText(sql).then(
       () => setCopied(true),
       () => setCopied(false),
     );

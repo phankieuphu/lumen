@@ -295,6 +295,9 @@ export interface Backend {
   /** Asks the user for a file and exports to it; resolves false if they cancelled. */
   auditExport(format: ExportFormat, filter: AuditFilter): Promise<boolean>;
 
+  /** Puts text on the system clipboard. */
+  copyText(text: string): Promise<void>;
+
   advisorList(connId: string, filter: AdvisorFilter): Promise<SlowQuery[]>;
   advisorDetail(connId: string, id: string): Promise<SlowQueryDetail>;
 

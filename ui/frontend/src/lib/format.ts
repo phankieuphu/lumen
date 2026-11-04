@@ -55,3 +55,35 @@ const dialectNames: Record<string, string> = { postgres: "PostgreSQL", mysql: "M
 
 /** dialectName is the product name shown for a dialect id. */
 export const dialectName = (d: string): string => dialectNames[d] ?? d;
+
+/** copyValue is a result value as copied text: full length, NULL for null. */
+export function copyValue(value: unknown): string {
+  if (value === null || value === undefined) return "NULL";
+  switch (typeof value) {
+    case "string":
+      return value;
+    case "number":
+    case "bigint":
+    case "boolean":
+      return String(value);
+    default:
+      return JSON.stringify(value) ?? "";
+  }
+}
+
+/**
+ * rowToTSV is a result row as one tab-separated line that pastes into a
+ * spreadsheet: null is an empty field, and a field holding a tab or line
+ * break, or starting with a quote, is quoted with inner quotes doubled.
+ * Spreadsheets treat a quote as special only at the start of a field, so
+ * JSON and other quoted text elsewhere pass through unchanged.
+ */
+export function rowToTSV(values: readonly unknown[]): string {
+  return values
+    .map((v) => {
+      if (v === null || v === undefined) return "";
+      const s = copyValue(v);
+      return /[\t\n\r]/.test(s) || s.startsWith('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    })
+    .join("\t");
+}

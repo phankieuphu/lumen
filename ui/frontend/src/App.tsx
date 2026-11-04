@@ -81,9 +81,7 @@ export function App() {
   return (
     <div className="app">
       <nav className="rail" aria-label="Main">
-        <div className="rail-logo" title="lumen">
-          <Icon name="database" size={18} strokeWidth={2} />
-        </div>
+        <img className="rail-logo" src="/favicon.svg" alt="lumen" width={32} height={32} />
         {views.map((v) => (
           <RailItem key={v.id} {...v} current={view === v.id} onClick={() => setView(v.id)} />
         ))}

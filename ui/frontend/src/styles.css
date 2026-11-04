@@ -363,15 +363,10 @@ button:focus-visible {
 }
 
 .rail-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 32px;
   height: 32px;
   margin-bottom: 10px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--accent-fg);
 }
 
 .rail-item {
@@ -678,6 +673,22 @@ button:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.grid.copyable .grid-cell {
+  cursor: copy;
+}
+
+.grid-cell.active {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--select);
+}
+
+.copy-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
 }
 
 .grid-cell.end {
