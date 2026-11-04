@@ -70,6 +70,23 @@ EOF
 
 windows-amd64)
 	mkdir -p "$work/$name"
+	# The icon Explorer shows for lumen.exe has to be a resource linked into
+	# the binary: go-winres writes it as a .syso that go build picks up. The
+	# gui manifest also marks the app DPI-aware. Removed after the build so it
+	# never lands in the tree.
+	syso=cmd/lumen/rsrc_windows_amd64.syso
+	trap 'rm -f "$syso"' EXIT
+	# Windows version fields are numeric, so only a vX.Y.Z tag is passed on;
+	# CI builds (VERSION=ci-<sha>) leave them at 0.0.0.0.
+	winver=()
+	if [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+		winver=(--product-version "${version#v}" --file-version "${version#v}")
+	fi
+	go run github.com/tc-hib/go-winres@v0.3.3 simply \
+		--arch amd64 --out cmd/lumen/rsrc --manifest gui \
+		--icon assets/icon/lumen.ico \
+		--product-name lumen --file-description "lumen SQL client" \
+		"${winver[@]}"
 	GOOS=windows GOARCH=amd64 build -ldflags "$ldflags -H windowsgui" -o "$work/$name/lumen.exe"
 	cp LICENSE "$work/$name/LICENSE.txt"
 	(cd "$work" && 7z a -tzip "../../$out/$name.zip" "$name" >/dev/null)

@@ -58,7 +58,8 @@ Icons: `assets/icon/lumen.svg` is the logo on the macOS icon grid, and
 `lumen-tile.svg` is the same tile without margins for small sizes. The
 `.icns`, `.ico`, and PNGs next to them are rendered from these SVGs and
 committed, so builds need no image tools. The shell embeds `ui/shell/icon.png`
-(window and taskbar icon on Windows); macOS takes the Dock icon from the
+(window and taskbar icon on Windows; `scripts/package.sh` also links
+`lumen.ico` into `lumen.exe` with go-winres for the Explorer icon); macOS takes the Dock icon from the
 bundle, and Linux GTK 4 from `assets/linux/io.github.phankieuphu.lumen.desktop`,
 which `install.sh` in the Linux tarball installs. The UI uses the tile as its
 favicon and rail logo.
