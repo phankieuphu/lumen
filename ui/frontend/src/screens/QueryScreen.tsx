@@ -79,7 +79,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           </span>
         ) : (
           summary?.kind === "read" &&
-          summary.rowCount > 0 && <span className="muted small-text">Click a cell to copy it, or # for the whole row</span>
+          summary.rowCount > 0 && <span className="muted small-text">Click a header to sort, a cell to copy it, or # for the whole row</span>
         )}
         {summary && (
           <span className="mono muted">

@@ -645,6 +645,47 @@ button:focus-visible {
   color: var(--faint);
 }
 
+.grid-sort {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  cursor: pointer;
+}
+
+.grid-sort:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.grid-th-title,
+.grid-th small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grid-sort-icon {
+  margin-left: auto;
+  flex: none;
+  font-size: 10px;
+  color: var(--faint);
+  opacity: 0;
+}
+
+.grid-th:hover .grid-sort-icon,
+.grid-sort:focus-visible .grid-sort-icon {
+  opacity: 1;
+}
+
+.grid-sort-icon.on {
+  color: var(--accent);
+  opacity: 1;
+}
+
 .grid-body {
   position: relative;
 }
