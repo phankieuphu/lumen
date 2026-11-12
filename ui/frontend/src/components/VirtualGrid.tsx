@@ -9,6 +9,14 @@ export interface GridColumn {
   /** Shown after the title, e.g. the column type. */
   hint?: string;
   align?: "start" | "end";
+  /** Whether clicking the header sorts by this column; needs onSort. */
+  sortable?: boolean;
+}
+
+export interface GridSort {
+  /** Index into columns. */
+  col: number;
+  dir: "asc" | "desc";
 }
 
 interface Props {
@@ -27,6 +35,10 @@ interface Props {
   /** Called when the last rows come into view, to load the next page. */
   onEndReached?: () => void;
   empty?: ReactNode;
+  /** The column the rows are sorted by, shown with an arrow in its header. */
+  sort?: GridSort | undefined;
+  /** Called when a sortable column's header is clicked. */
+  onSort?: (col: number) => void;
 }
 
 const OVERSCAN = 8;
@@ -48,6 +60,8 @@ export function VirtualGrid({
   activeCell,
   onEndReached,
   empty,
+  sort,
+  onSort,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState(0);
@@ -99,12 +113,31 @@ export function VirtualGrid({
   return (
     <div className={onCellClick ? "grid copyable" : "grid"} ref={scroller} onScroll={onScroll} role="grid" aria-rowcount={rowCount}>
       <div className="grid-head" style={{ gridTemplateColumns: template, width }} role="row">
-        {columns.map((c) => (
-          <div key={c.key} className="grid-cell grid-th" role="columnheader" title={c.hint ? `${c.title} (${c.hint})` : c.title}>
-            <span>{c.title}</span>
-            {c.hint && <small>{c.hint}</small>}
-          </div>
-        ))}
+        {columns.map((c, col) => {
+          const label = c.hint ? `${c.title} (${c.hint})` : c.title;
+          const dir = sort?.col === col ? sort.dir : undefined;
+          const ariaSort = dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined;
+          if (!c.sortable || !onSort) {
+            return (
+              <div key={c.key} className="grid-cell grid-th" role="columnheader" title={label}>
+                <span>{c.title}</span>
+                {c.hint && <small>{c.hint}</small>}
+              </div>
+            );
+          }
+          const next = dir === "asc" ? "descending" : dir === "desc" ? "original order" : "ascending";
+          return (
+            <div key={c.key} className="grid-cell grid-th" role="columnheader" aria-sort={ariaSort}>
+              <button type="button" className="grid-sort" onClick={() => onSort(col)} title={`${label} — click to sort ${next}`}>
+                <span className="grid-th-title">{c.title}</span>
+                {c.hint && <small>{c.hint}</small>}
+                <span className={dir ? "grid-sort-icon on" : "grid-sort-icon"} aria-hidden="true">
+                  {dir === "desc" ? "▼" : dir === "asc" ? "▲" : "⇅"}
+                </span>
+              </button>
+            </div>
+          );
+        })}
       </div>
       {rowCount === 0 ? (
         empty && <div className="grid-empty">{empty}</div>
