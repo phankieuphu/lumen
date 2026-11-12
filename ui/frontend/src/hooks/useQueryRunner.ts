@@ -21,19 +21,26 @@ const PAGE_SIZE = 500;
  * into a ResultStore. Only the current request may touch the store or the
  * state; a request that was cancelled or superseded is ignored. onFinish is
  * called after every request, whatever its outcome.
+ *
+ * Pages arrive as events, apart from the call's result, so the last ones can
+ * land after runQuery resolves. The store therefore keeps taking pages for
+ * the request it shows until the next run replaces it.
  */
 export function useQueryRunner(connId: string, onFinish?: () => void) {
   const backend = useBackend();
   const store = useMemo(() => new ResultStore(), []);
   const [state, setState] = useState<RunState>({ phase: "idle" });
+  // The running request; null once it finished.
   const active = useRef<string | null>(null);
+  // The request whose rows the store holds, finished or not.
+  const shown = useRef<string | null>(null);
   const finished = useRef(onFinish);
   finished.current = onFinish;
 
   useEffect(
     () =>
       backend.onPage((page) => {
-        if (page.requestId === active.current) store.append(page);
+        if (page.requestId === shown.current) store.append(page);
       }),
     [backend, store],
   );
@@ -44,6 +51,7 @@ export function useQueryRunner(connId: string, onFinish?: () => void) {
       const requestId = crypto.randomUUID();
       const current = () => active.current === requestId;
       active.current = requestId;
+      shown.current = requestId;
       store.clear();
       setState({ phase: "running" });
       try {
@@ -77,6 +85,7 @@ export function useQueryRunner(connId: string, onFinish?: () => void) {
     return () => {
       stop();
       active.current = null;
+      shown.current = null;
     };
   }, [connId, stop, store]);
 
