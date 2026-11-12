@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Page } from "../api/types";
-import { ResultStore } from "./resultStore";
+import { compareCells, ResultStore } from "./resultStore";
 
 const page = (seq: number, rows: number, withColumns = false): Page => ({
   requestId: "r",
@@ -61,5 +61,52 @@ describe("ResultStore", () => {
     const s = new ResultStore(manual().schedule);
     s.append(page(0, 200_000));
     expect(s.rowCount).toBe(200_000);
+  });
+
+  describe("sort", () => {
+    const rowsPage = (rows: unknown[][]): Page => ({ requestId: "r", seq: 0, rows });
+    const col0 = (s: ResultStore) => Array.from({ length: s.rowCount }, (_, i) => s.row(i)?.[0]);
+
+    it("orders by a column, nulls last both ways, and restores the original order", () => {
+      const s = new ResultStore(manual().schedule);
+      s.append(rowsPage([[3], [null], [1], [2]]));
+      s.setSort({ column: 0, dir: "asc" });
+      expect(col0(s)).toEqual([1, 2, 3, null]);
+      s.setSort({ column: 0, dir: "desc" });
+      expect(col0(s)).toEqual([3, 2, 1, null]);
+      s.setSort(undefined);
+      expect(col0(s)).toEqual([3, null, 1, 2]);
+    });
+
+    it("sorts rows that arrive later and is dropped by clear", () => {
+      const s = new ResultStore(manual().schedule);
+      s.append(rowsPage([["b"], ["d"]]));
+      s.setSort({ column: 0, dir: "asc" });
+      expect(col0(s)).toEqual(["b", "d"]);
+      s.append(rowsPage([["a"], ["c"]]));
+      expect(col0(s)).toEqual(["a", "b", "c", "d"]);
+      s.clear();
+      expect(s.sort).toBeUndefined();
+    });
+
+    it("keeps ties in result order", () => {
+      const s = new ResultStore(manual().schedule);
+      s.append(rowsPage([[1, "x"], [0, "y"], [1, "z"]]));
+      s.setSort({ column: 0, dir: "desc" });
+      expect(Array.from({ length: 3 }, (_, i) => s.row(i)?.[1])).toEqual(["x", "z", "y"]);
+    });
+  });
+});
+
+describe("compareCells", () => {
+  it.each<{ name: string; a: unknown; b: unknown; want: number }>([
+    { name: "numbers numerically", a: 9, b: 10, want: -1 },
+    { name: "bigint with number", a: 10n, b: 9, want: 1 },
+    { name: "booleans false first", a: false, b: true, want: -1 },
+    { name: "text in natural order", a: "item2", b: "item10", want: -1 },
+    { name: "text ignoring case", a: "abc", b: "ABC", want: 0 },
+    { name: "equal numbers", a: 5, b: 5, want: 0 },
+  ])("$name", ({ a, b, want }) => {
+    expect(Math.sign(compareCells(a, b))).toBe(want);
   });
 });

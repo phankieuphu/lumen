@@ -133,6 +133,8 @@ export function createMockBackend(): Backend {
         { name: "meta", type: "jsonb", nullable: true },
         { name: "created_at", type: "timestamptz", nullable: false },
       ];
+      // A real server takes a moment before the first row.
+      await sleep(300);
       let sent = 0;
       for (let seq = 0; sent < Math.min(total, maxRows); seq++) {
         if (cancelled.delete(requestId)) return finish("cancelled", { columns, rowCount: sent, error: "cancelled" });
@@ -142,7 +144,9 @@ export function createMockBackend(): Backend {
           return [id, `user${id}@example.com`, id % 7 === 0 ? null : (id * 13.37).toFixed(2), id % 5 === 0 ? { tier: "gold", tags: ["a", "b"] } : null, new Date(1_700_000_000_000 + id * 60_000).toISOString()];
         });
         const page: Page = { requestId, seq, rows, ...(seq === 0 ? { columns } : {}) };
-        pageListeners.forEach((fn) => fn(page));
+        // Like Wails events, pages travel apart from the call's result and
+        // can arrive after it resolves.
+        setTimeout(() => pageListeners.forEach((fn) => fn(page)), 40);
         sent += n;
         await sleep(20);
       }

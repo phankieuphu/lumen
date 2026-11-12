@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { type Connection, useBackend } from "./api";
 import { Icon, type IconName } from "./components/icons";
@@ -46,6 +46,13 @@ export function App() {
   const editor = useRef<EditorHandle>(null);
 
   const conn = connections.find((c) => c.id === selectedId) ?? connections[0];
+  // The connection whose diagram was last opened. The diagram stays mounted
+  // (hidden) while it is still the current connection, so its filters,
+  // selection, zoom, and dragged positions survive switching views.
+  const [diagramConnId, setDiagramConnId] = useState<string>();
+  useEffect(() => {
+    if (view === "relations" && conn) setDiagramConnId(conn.id);
+  }, [view, conn]);
   const bumpHistory = useCallback(() => setHistoryVersion((v) => v + 1), []);
 
   const openInEditor = useCallback((sql: string, connId?: string) => {
@@ -102,10 +109,12 @@ export function App() {
             {conn && view === "history" && (
               <HistoryScreen conn={conn} refresh={historyVersion} onOpen={(sql) => openInEditor(sql)} />
             )}
-            {conn && view === "relations" && (
-              <Suspense fallback={<p className="muted pad">Loading diagram…</p>}>
-                <RelationsScreen key={conn.id} conn={conn} onOpen={(sql) => openInEditor(sql)} />
-              </Suspense>
+            {conn && (view === "relations" || diagramConnId === conn.id) && (
+              <div className="fill" hidden={view !== "relations"}>
+                <Suspense fallback={<p className="muted pad">Loading diagram…</p>}>
+                  <RelationsScreen key={conn.id} conn={conn} onOpen={openInEditor} />
+                </Suspense>
+              </div>
             )}
             {!conn && !conns.loading && (
               <div className="empty-state">

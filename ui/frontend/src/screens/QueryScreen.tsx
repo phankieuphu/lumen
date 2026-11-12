@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useState } from "react";
+import { type RefObject, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { type Connection, errorMessage, useBackend } from "../api";
 import { Elapsed } from "../components/Elapsed";
@@ -40,6 +40,11 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
   }, [copied]);
   const running = state.phase === "running";
   const { summary } = state;
+  // Rows can still be arriving after the summary; keep showing progress until
+  // the store holds as many as the summary reports.
+  const loaded = useSyncExternalStore(store.subscribe, () => store.rowCount);
+  const hasColumns = useSyncExternalStore(store.subscribe, () => store.columns.length > 0);
+  const loading = running || (state.phase === "done" && summary?.kind === "read" && loaded < summary.rowCount);
 
   return (
     <section className={conn.env === "prod" ? "query prod" : "query"} aria-label="Query editor">
@@ -73,15 +78,22 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           </>
         )}
         <span className="spacer" />
+        {loading && (
+          <span className="result-loading-note muted" role="status">
+            <span className="spinner" aria-hidden="true" />
+            {running ? "Running…" : "Loading rows…"}
+            {loaded > 0 && ` ${formatCount(loaded)} rows`}
+          </span>
+        )}
         {copied ? (
           <span className={copied.failed ? "copy-note danger-text" : "copy-note ok-text"} role="status">
             <Icon name={copied.failed ? "alert" : "check"} size={13} strokeWidth={2} /> {copied.text}
           </span>
         ) : (
           summary?.kind === "read" &&
-          summary.rowCount > 0 && <span className="muted small-text">Click a cell to copy it, or # for the whole row</span>
+          summary.rowCount > 0 && <span className="muted small-text">Click a header to sort, a cell to copy it, or # for the whole row</span>
         )}
-        {summary && (
+        {summary && !loading && (
           <span className="mono muted">
             {summary.kind === "read"
               ? `${formatCount(summary.rowCount)} rows`
@@ -91,8 +103,16 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           </span>
         )}
       </div>
-      <div className="result">
-        <ResultGrid store={store} onCopy={copy} />
+      <div className={loading ? "result loading" : "result"} aria-busy={loading}>
+        {loading && <div className="result-progress" aria-hidden="true" />}
+        {loading && !hasColumns ? (
+          <div className="result-wait">
+            <span className="spinner large" aria-hidden="true" />
+            <span>{running ? "Running query…" : "Loading rows…"}</span>
+          </div>
+        ) : (
+          <ResultGrid store={store} onCopy={copy} />
+        )}
       </div>
       <footer className="statusbar">
         <span className="statusbar-item">
