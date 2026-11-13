@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/phankieuphu/lumen/internal/advisor"
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/conn"
 	"github.com/phankieuphu/lumen/internal/driver"
@@ -160,6 +161,34 @@ func (a *App) Schema(ctx context.Context, connID string) (schema.Schema, error) 
 		return schema.Schema{}, err
 	}
 	return schema.Read(ctx, c, schema.Limits{})
+}
+
+// advisorTimeout bounds a statistics or plan read.
+const advisorTimeout = 30 * time.Second
+
+// AdvisorList returns the statements that cost the connection's database
+// the most time. It runs fixed reads of the engine's statement statistics,
+// so it is allowed on read-only and production connections.
+func (a *App) AdvisorList(ctx context.Context, connID string, f advisor.Filter) (advisor.List, error) {
+	ctx, cancel := context.WithTimeout(ctx, advisorTimeout)
+	defer cancel()
+	c, _, err := a.conns.Get(ctx, connID)
+	if err != nil {
+		return advisor.List{}, err
+	}
+	return advisor.Top(ctx, c, f)
+}
+
+// AdvisorDetail returns one statement with its current plan. The plan comes
+// from an EXPLAIN without ANALYZE, which never runs the statement.
+func (a *App) AdvisorDetail(ctx context.Context, connID, id string) (advisor.Detail, error) {
+	ctx, cancel := context.WithTimeout(ctx, advisorTimeout)
+	defer cancel()
+	c, _, err := a.conns.Get(ctx, connID)
+	if err != nil {
+		return advisor.Detail{}, err
+	}
+	return advisor.Explain(ctx, c, id)
 }
 
 // ListConnections returns all saved profiles.
