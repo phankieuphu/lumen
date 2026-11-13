@@ -6,19 +6,21 @@
 | --- | --- | --- |
 | `cmd/lumen` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
 | `ui/shell` | The only Wails import; opens the window, serves the embedded UI, binds `app.API`, and emits events | `app` |
-| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `store` |
+| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `advisor`, `store` |
 | `internal/query` | Run / cancel by request ID, page streaming, classifier | `conn`, `audit`, `store`, `driver` |
 | `internal/conn` | Connection profiles, pool cache, read-only, env tags | `driver`, `store`, `secret` |
 | `internal/audit` | Append-only, hash-chained log; verify; CSV/JSON export | `store` |
 | `internal/store` | Local SQLite file, embedded numbered migrations | — |
 | `internal/secret` | OS keychain (and in-memory store for tests) | — |
+| `internal/advisor` | Top slow statements from `pg_stat_statements` / `performance_schema`, filtered and sorted on the server; generic plan on PostgreSQL from an `EXPLAIN` that never runs the statement | `driver`, `sqlscan` |
 | `internal/schema` | Tables, columns, PKs, and foreign keys from catalog queries, bounded by table/column limits | `driver` |
 | `internal/sqlscan` | Dialect-aware lexer and statement splitter | — |
 | `internal/driver` | `Driver`, `Conn`, `Session`, `Rows` interfaces; registry | — |
 | `internal/driver/{postgres,mysql,sqlite}` | Engine implementations | `driver` |
 
-Later phases add `sqlparse`, `lint`, `explain`, `debug`, `locks`, `ai`,
-`advisor`, and `monitor`, each depending only on `driver` and `store`.
+Later phases add `sqlparse`, `lint`, `explain`, `debug`, `locks`, `ai`, and
+`monitor`, each depending only on `driver` and `store`. `advisor` gains its
+advice and verification steps once `ai` and `explain` exist.
 
 ## Query path
 
@@ -83,10 +85,13 @@ The layout is an icon rail plus one screen. The query editor stays mounted
 while hidden, so its text and last result survive switching screens. IBM
 Plex Sans and Mono are bundled from `@fontsource` so the app works offline.
 
-The advisor, monitor, and AI settings screens are typed against `Backend`
-methods whose Go side is not built yet (phases 3–5). The Wails backend rejects
-those calls with a "not available yet" message that the screens show; the dev
-mock (`src/api/mockFeatures.ts`) returns sample data. The monitor polls on an
+The advisor screen reads live statistics: its filters (search, statement
+type, minimum mean time and calls, sort, and the time window on MySQL) are
+sent to the backend, which applies them before the row limit. Its advice card
+stays empty until phase 3. The monitor and AI settings screens are typed
+against `Backend` methods whose Go side is not built yet (phases 3 and 5). The
+Wails backend rejects those calls with a "not available yet" message that the
+screens show; the dev mock (`src/api/mockFeatures.ts`) returns sample data. The monitor polls on an
 interval owned by an effect, which stops it on pause, on another connection,
 and on unmount.
 
