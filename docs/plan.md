@@ -107,7 +107,7 @@ Tick tasks off as they are done; each list ends with its phase gate.
 
 ### Phase 4 · Slow-query advisor
 
-- [ ] Top slow queries from `pg_stat_statements` and `performance_schema`
+- [x] Top slow queries from `pg_stat_statements` and `performance_schema`
 - [ ] Advice task with fixed JSON answer format
 - [ ] Verification: `EXPLAIN` on rewrites, HypoPG for indexes, retry up to three ideas
 - [ ] Advisor screen: list, plan, advice, cost before and after, apply or skip
