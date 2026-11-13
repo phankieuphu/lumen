@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	"github.com/phankieuphu/lumen/internal/advisor"
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/schema"
 )
@@ -33,6 +34,16 @@ func (p *API) QueryHistory(ctx context.Context, connID string, beforeID int64, l
 // Schema forwards to App.Schema.
 func (p *API) Schema(ctx context.Context, connID string) (schema.Schema, error) {
 	return p.a.Schema(ctx, connID)
+}
+
+// AdvisorList forwards to App.AdvisorList.
+func (p *API) AdvisorList(ctx context.Context, connID string, f advisor.Filter) (advisor.List, error) {
+	return p.a.AdvisorList(ctx, connID, f)
+}
+
+// AdvisorDetail forwards to App.AdvisorDetail.
+func (p *API) AdvisorDetail(ctx context.Context, connID, id string) (advisor.Detail, error) {
+	return p.a.AdvisorDetail(ctx, connID, id)
 }
 
 // ListConnections forwards to App.ListConnections.

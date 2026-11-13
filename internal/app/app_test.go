@@ -2,12 +2,14 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/phankieuphu/lumen/internal/advisor"
 	"github.com/phankieuphu/lumen/internal/secret"
 )
 
@@ -92,5 +94,30 @@ func TestEndToEnd(t *testing.T) {
 	list, err := a.ListConnections(ctx)
 	if err != nil || len(list) != 1 || list[0].ID != c.ID {
 		t.Fatalf("connections = %+v, %v", list, err)
+	}
+}
+
+// TestAdvisorOnSQLite checks the advisor is wired through the façade and
+// says plainly that SQLite keeps no statement statistics.
+func TestAdvisorOnSQLite(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	a, err := Open(ctx, Config{DataDir: dir, Version: "test", Secrets: &secret.Memory{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close(ctx)
+	c, err := a.CreateConnection(ctx, ConnectionInput{Name: "local", Dialect: "sqlite", Database: filepath.Join(dir, "data.db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.AdvisorList(ctx, c.ID, advisor.Filter{}); !errors.Is(err, advisor.ErrUnsupported) {
+		t.Fatalf("list err = %v, want ErrUnsupported", err)
+	}
+	if _, err := a.AdvisorDetail(ctx, c.ID, "x"); !errors.Is(err, advisor.ErrUnsupported) {
+		t.Fatalf("detail err = %v, want ErrUnsupported", err)
+	}
+	if _, err := a.AdvisorList(ctx, "no-such-connection", advisor.Filter{}); err == nil {
+		t.Fatal("want an error for an unknown connection")
 	}
 }
