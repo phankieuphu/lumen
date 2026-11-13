@@ -77,6 +77,17 @@ jobs:
           go-version-file: go.mod
       - name: Install GTK 4 and WebKitGTK 6 headers (Wails, ui/shell)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+      # A service container cannot take a command, so the preload that
+      # deploy/compose.yaml passes on the command line is set here.
+      - name: Preload pg_stat_statements (advisor tests)
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U lumen -c "ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements'"
+          docker restart ${{ job.services.postgres.id }}
+          for i in $(seq 1 30); do
+            docker exec ${{ job.services.postgres.id }} pg_isready -U lumen && exit 0
+            sleep 1
+          done
+          exit 1
       - run: go test -race -count=1 -tags=integration ./...
 
   vuln:

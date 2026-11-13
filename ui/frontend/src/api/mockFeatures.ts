@@ -243,12 +243,23 @@ export function createMockFeatures(conns: () => readonly Connection[]): FeatureM
   };
 
   return {
-    async advisorList(connId, { windowHours, minMeanMs }) {
+    async advisorList(connId, f) {
       find(connId);
       await sleep(150);
-      return slowQueries
-        .filter((q) => q.meanMs >= minMeanMs)
-        .map((q) => ({ ...summary(q), calls: Math.round((q.calls * windowHours) / 24) }));
+      const needle = f.search.trim().toLowerCase();
+      const hours = f.windowHours || 24;
+      const order: Record<typeof f.sort, (q: SlowQuery) => number> = {
+        share: (q) => q.sharePct,
+        mean: (q) => q.meanMs,
+        calls: (q) => q.calls,
+      };
+      const queries = slowQueries
+        .map((q) => ({ ...summary(q), calls: Math.round((q.calls * hours) / 24) }))
+        .filter((q) => q.meanMs >= f.minMeanMs && q.calls >= f.minCalls)
+        .filter((q) => !needle || q.sql.toLowerCase().includes(needle))
+        .filter((q) => !f.kind || q.sql.trimStart().toLowerCase().startsWith(f.kind))
+        .sort((a, b) => order[f.sort](b) - order[f.sort](a));
+      return { queries, statsSince: new Date(started - 36 * 3_600_000).toISOString(), windowed: f.windowHours > 0, truncated: false };
     },
     async advisorDetail(connId, id) {
       find(connId);

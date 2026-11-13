@@ -21,7 +21,6 @@ const exportFilters: Record<ExportFormat, { DisplayName: string; Pattern: string
 const notYet = (feature: string, phase: number) => () =>
   Promise.reject(new Error(`${feature} is not available yet: it arrives in phase ${phase} of docs/plan.md.`));
 
-const advisor = notYet("The slow-query advisor", 4);
 const monitor = notYet("The monitor", 5);
 const ai = notYet("AI", 3);
 
@@ -53,8 +52,8 @@ export const wailsBackend: Backend = {
   // The native clipboard: the web view may refuse navigator.clipboard.
   copyText: (text) => Clipboard.SetText(text),
 
-  advisorList: advisor,
-  advisorDetail: advisor,
+  advisorList: (connId, filter) => call("AdvisorList", connId, filter),
+  advisorDetail: (connId, id) => call("AdvisorDetail", connId, id),
 
   monitorSnapshot: monitor,
   monitorEndSession: monitor,

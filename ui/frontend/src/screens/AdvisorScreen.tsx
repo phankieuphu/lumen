@@ -1,23 +1,49 @@
 import { useEffect, useState } from "react";
 
-import { type AdviceState, type Connection, type SlowQuery, type SlowQueryDetail, useBackend } from "../api";
+import {
+  type AdviceState,
+  type AdvisorKind,
+  type AdvisorSort,
+  type Connection,
+  type SlowQuery,
+  type SlowQueryDetail,
+  useBackend,
+} from "../api";
 import { Icon } from "../components/icons";
 import { Badge, Banner, ConnSelect } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
-import { formatCount, formatDuration, oneLine } from "../lib/format";
+import { formatCount, formatDuration, formatTime, oneLine } from "../lib/format";
 
 const windows = [
   { hours: 1, label: "Last hour" },
   { hours: 24, label: "Last 24 hours" },
   { hours: 168, label: "Last 7 days" },
 ];
-const thresholds = [100, 200, 500, 1000];
+const thresholds = [0, 10, 100, 200, 500, 1000];
+const callCounts = [0, 10, 100, 1000, 10_000];
+const kinds: { value: AdvisorKind; label: string }[] = [
+  { value: "", label: "All statements" },
+  { value: "select", label: "SELECT" },
+  { value: "insert", label: "INSERT" },
+  { value: "update", label: "UPDATE" },
+  { value: "delete", label: "DELETE" },
+];
+const sorts: { value: AdvisorSort; label: string; note: string }[] = [
+  { value: "share", label: "Sort: share of time", note: "share of database time" },
+  { value: "mean", label: "Sort: mean time", note: "mean time" },
+  { value: "calls", label: "Sort: calls", note: "number of calls" },
+];
+
+const defaults = { windowHours: 24, minMeanMs: 200, minCalls: 0, kind: "" as AdvisorKind, sort: "share" as AdvisorSort };
+/** How long typing must pause before the search runs. */
+const SEARCH_DELAY_MS = 300;
 
 const stateLabel: Record<AdviceState, { tone: string; text: string }> = {
   "fix-verified": { tone: "ok", text: "Fix verified" },
   "rewrite-verified": { tone: "ok", text: "Rewrite verified" },
   "no-fix": { tone: "none", text: "No safe fix" },
   pending: { tone: "none", text: "Analysing" },
+  "not-analysed": { tone: "none", text: "No advice yet" },
 };
 
 const statsSource: Record<string, string> = {
@@ -33,16 +59,38 @@ interface Props {
   onOpen: (sql: string, connId: string) => void;
 }
 
-/** AdvisorScreen lists the slowest queries and shows a verified fix for each. */
+/**
+ * AdvisorScreen lists the slowest queries with their plan and, once the
+ * advice task exists, a verified fix for each. The backend applies every
+ * filter, so the list is the true top of what matches.
+ */
 export function AdvisorScreen({ conn, connections, onSelectConn, onOpen }: Props) {
   const backend = useBackend();
-  const [windowHours, setWindowHours] = useState(24);
-  const [minMeanMs, setMinMeanMs] = useState(200);
+  const [windowHours, setWindowHours] = useState(defaults.windowHours);
+  const [minMeanMs, setMinMeanMs] = useState(defaults.minMeanMs);
+  const [minCalls, setMinCalls] = useState(defaults.minCalls);
+  const [kind, setKind] = useState(defaults.kind);
+  const [sort, setSort] = useState(defaults.sort);
+  const [searchText, setSearchText] = useState("");
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string>();
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
 
-  const list = useAsync(() => backend.advisorList(conn.id, { windowHours, minMeanMs }), [backend, conn.id, windowHours, minMeanMs]);
-  const queries = (list.data ?? []).filter((q) => !skipped.has(q.id));
+  // The search waits for a pause in typing; the timer is dropped on the
+  // next key press and on unmount.
+  useEffect(() => {
+    const id = setTimeout(() => setSearch(searchText.trim()), SEARCH_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [searchText]);
+
+  // PostgreSQL totals run from the last statistics reset; only MySQL
+  // records when a statement was last seen.
+  const canWindow = conn.dialect !== "postgres";
+  const list = useAsync(
+    () => backend.advisorList(conn.id, { windowHours: canWindow ? windowHours : 0, minMeanMs, minCalls, search, kind, sort }),
+    [backend, conn.id, canWindow, windowHours, minMeanMs, minCalls, search, kind, sort],
+  );
+  const queries = (list.data?.queries ?? []).filter((q) => !skipped.has(q.id));
   const selected = queries.find((q) => q.id === selectedId) ?? queries[0];
 
   const detail = useAsync(
@@ -57,7 +105,26 @@ export function AdvisorScreen({ conn, connections, onSelectConn, onOpen }: Props
     setSelectedId(undefined);
   };
 
+  const filtered =
+    searchText !== "" ||
+    windowHours !== defaults.windowHours ||
+    minMeanMs !== defaults.minMeanMs ||
+    minCalls !== defaults.minCalls ||
+    kind !== defaults.kind ||
+    sort !== defaults.sort;
+  const reset = () => {
+    setSearchText("");
+    setSearch("");
+    setWindowHours(defaults.windowHours);
+    setMinMeanMs(defaults.minMeanMs);
+    setMinCalls(defaults.minCalls);
+    setKind(defaults.kind);
+    setSort(defaults.sort);
+  };
+
   const source = statsSource[conn.dialect];
+  const since = list.data?.statsSince;
+  const sortNote = sorts.find((s) => s.value === sort)?.note;
   return (
     <div className="advisor">
       <aside className="sidebar advisor-list" aria-label="Slow queries">
@@ -65,27 +132,73 @@ export function AdvisorScreen({ conn, connections, onSelectConn, onOpen }: Props
           <h1 className="title">Slow-query advisor</h1>
           <div className="chip-row">
             <ConnSelect connections={connections} value={conn.id} onChange={onSelectConn} />
-            <select className="pill-select" aria-label="Time window" value={windowHours} onChange={(e) => setWindowHours(Number(e.target.value))}>
-              {windows.map((w) => (
-                <option key={w.hours} value={w.hours}>
-                  {w.label}
+            {canWindow && (
+              <select className="pill-select" aria-label="Time window" value={windowHours} onChange={(e) => setWindowHours(Number(e.target.value))}>
+                {windows.map((w) => (
+                  <option key={w.hours} value={w.hours}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <input
+            type="search"
+            className="advisor-search"
+            aria-label="Search query text"
+            placeholder="Search query text or table name"
+            maxLength={200}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <div className="chip-row">
+            <select className="pill-select" aria-label="Statement type" value={kind} onChange={(e) => setKind(e.target.value as AdvisorKind)}>
+              {kinds.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
                 </option>
               ))}
             </select>
             <select className="pill-select" aria-label="Minimum mean time" value={minMeanMs} onChange={(e) => setMinMeanMs(Number(e.target.value))}>
               {thresholds.map((t) => (
                 <option key={t} value={t}>
-                  Slower than {formatDuration(t)}
+                  {t === 0 ? "Any mean time" : `Slower than ${formatDuration(t)}`}
                 </option>
               ))}
             </select>
+            <select className="pill-select" aria-label="Minimum calls" value={minCalls} onChange={(e) => setMinCalls(Number(e.target.value))}>
+              {callCounts.map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? "Any number of calls" : `At least ${formatCount(n)} calls`}
+                </option>
+              ))}
+            </select>
+            <select className="pill-select" aria-label="Sort order" value={sort} onChange={(e) => setSort(e.target.value as AdvisorSort)}>
+              {sorts.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {filtered && (
+              <button type="button" onClick={reset}>
+                Clear filters
+              </button>
+            )}
           </div>
           <p className="muted small-text">
-            {source ? `Source: ${source}, sorted by share of database time` : "Slow-query statistics are not available for SQLite."}
+            {source
+              ? `Source: ${source}, sorted by ${sortNote}${!canWindow && since ? `. Totals since ${formatTime(since)}` : ""}`
+              : "Slow-query statistics are not available for SQLite."}
           </p>
+          {list.data?.truncated && (
+            <p className="muted small-text">Showing the top {formatCount(list.data.queries.length)}. Narrow the filters to see other queries.</p>
+          )}
         </div>
         {list.error && <Banner tone="warn">{list.error}</Banner>}
-        {!list.error && !list.loading && queries.length === 0 && <p className="muted pad">No queries slower than {formatDuration(minMeanMs)}.</p>}
+        {!list.error && !list.loading && queries.length === 0 && (
+          <p className="muted pad">{filtered ? "No queries match these filters." : `No queries slower than ${formatDuration(minMeanMs)}.`}</p>
+        )}
         <ul>
           {queries.map((q) => (
             <li key={q.id}>
@@ -148,7 +261,7 @@ function Detail({ q, conn, onOpen, onSkip }: { q: SlowQueryDetail; conn: Connect
       <header className="page-head">
         <div>
           <h1 className="title">{q.title}</h1>
-          <p className="muted">Tables used: {q.tables.join(", ")}</p>
+          <p className="muted">{q.tables.length > 0 ? `Tables used: ${q.tables.join(", ")}` : "No table names found in the statement"}</p>
         </div>
         <span className="spacer" />
         <dl className="stats">
@@ -177,8 +290,9 @@ function Detail({ q, conn, onOpen, onSkip }: { q: SlowQueryDetail; conn: Connect
           <header className="card-head small">
             <h2>Current plan</h2>
             <span className="spacer" />
-            <span className="muted small-text">{q.planSource}</span>
+            {q.plan.length > 0 && <span className="muted small-text">{q.planSource}</span>}
           </header>
+          {q.plan.length === 0 && <p className="muted pad">{q.planSource}</p>}
           <table className="plan">
             <tbody>
               {q.plan.map((n, i) => (
