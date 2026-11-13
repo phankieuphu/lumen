@@ -145,20 +145,41 @@ export interface DbSchema {
   truncated: boolean;
 }
 
-// Slow-query advisor (phase 4). No Go side yet; see wails.ts.
+// Slow-query advisor (phase 4). Mirrors internal/advisor. The list and the
+// plan are live; advice needs the AI provider of phase 3.
 
-export type AdviceState = "fix-verified" | "rewrite-verified" | "no-fix" | "pending";
+export type AdviceState = "fix-verified" | "rewrite-verified" | "no-fix" | "pending" | "not-analysed";
+
+export type AdvisorSort = "share" | "mean" | "calls";
+/** "" keeps every statement type. */
+export type AdvisorKind = "" | "select" | "insert" | "update" | "delete";
 
 export interface AdvisorFilter {
-  /** Look-back window in hours. */
+  /** Look-back window in hours; 0 for no bound. Only MySQL can apply it. */
   windowHours: number;
   /** Queries with a lower mean time are left out. */
   minMeanMs: number;
+  /** Queries called fewer times are left out. */
+  minCalls: number;
+  /** Keeps queries whose text contains this, ignoring case. */
+  search: string;
+  kind: AdvisorKind;
+  sort: AdvisorSort;
+}
+
+export interface AdvisorList {
+  queries: SlowQuery[];
+  /** When the server last reset its statistics (RFC 3339), or "". */
+  statsSince: string;
+  /** Whether windowHours was applied. */
+  windowed: boolean;
+  /** More queries matched than the list holds. */
+  truncated: boolean;
 }
 
 export interface SlowQuery {
   id: string;
-  /** A short human name for the query, e.g. "Revenue per customer". */
+  /** A short name for the query, e.g. "SELECT on orders". */
   title: string;
   sql: string;
   tables: string[];
@@ -189,6 +210,7 @@ export interface Advice {
 }
 
 export interface SlowQueryDetail extends SlowQuery {
+  /** How the plan was read, or why there is none when plan is empty. */
   planSource: string;
   plan: PlanNode[];
   /** null when no safe fix was found. */
@@ -298,7 +320,7 @@ export interface Backend {
   /** Puts text on the system clipboard. */
   copyText(text: string): Promise<void>;
 
-  advisorList(connId: string, filter: AdvisorFilter): Promise<SlowQuery[]>;
+  advisorList(connId: string, filter: AdvisorFilter): Promise<AdvisorList>;
   advisorDetail(connId: string, id: string): Promise<SlowQueryDetail>;
 
   monitorSnapshot(connId: string, rangeMinutes: number): Promise<MonitorSnapshot>;
