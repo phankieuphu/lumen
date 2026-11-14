@@ -78,12 +78,31 @@ type RunInput struct {
 	MaxRows      int    `json:"maxRows"`
 	ConfirmWrite bool   `json:"confirmWrite"`
 	TimeoutMs    int64  `json:"timeoutMs"`
+	// TxID runs the statement inside this open transaction.
+	TxID string `json:"txId,omitempty"`
 }
 
 func (in RunInput) request() query.Request {
 	return query.Request{
 		ID: in.RequestID, ConnID: in.ConnID, SQL: in.SQL, PageSize: in.PageSize, MaxRows: in.MaxRows,
-		ConfirmWrite: in.ConfirmWrite, Timeout: time.Duration(in.TimeoutMs) * time.Millisecond,
+		ConfirmWrite: in.ConfirmWrite, Timeout: time.Duration(in.TimeoutMs) * time.Millisecond, TxID: in.TxID,
+	}
+}
+
+// TxDTO is an open transaction.
+type TxDTO struct {
+	ID         string `json:"id"`
+	ConnID     string `json:"connId"`
+	Label      string `json:"label,omitempty"`
+	StartedAt  string `json:"startedAt"`
+	Statements int64  `json:"statements"`
+	Writes     int64  `json:"writes"`
+}
+
+func txDTO(t query.TxInfo) TxDTO {
+	return TxDTO{
+		ID: t.ID, ConnID: t.ConnID, Label: t.Label, StartedAt: timeString(t.StartedAt),
+		Statements: t.Statements, Writes: t.Writes,
 	}
 }
 
@@ -110,6 +129,10 @@ type SummaryDTO struct {
 	Truncated    bool            `json:"truncated"`
 	DurationMs   int64           `json:"durationMs"`
 	Error        string          `json:"error,omitempty"`
+	TxID         string          `json:"txId,omitempty"`
+	TxLabel      string          `json:"txLabel,omitempty"`
+	// TxEnd is "commit" or "rollback" when the request ended the transaction.
+	TxEnd string `json:"txEnd,omitempty"`
 }
 
 func summaryDTO(s query.Summary) SummaryDTO {
@@ -117,6 +140,7 @@ func summaryDTO(s query.Summary) SummaryDTO {
 		RequestID: s.RequestID, Kind: string(s.Kind), Status: string(s.Status), Columns: s.Columns,
 		RowCount: s.RowCount, RowsAffected: s.RowsAffected, Truncated: s.Truncated,
 		DurationMs: s.Duration.Milliseconds(), Error: s.Error,
+		TxID: s.TxID, TxLabel: s.TxLabel, TxEnd: string(s.TxEnd),
 	}
 }
 
@@ -131,12 +155,15 @@ type HistoryDTO struct {
 	RowCount   int64  `json:"rowCount"`
 	SQL        string `json:"sql"`
 	Error      string `json:"error,omitempty"`
+	TxID       string `json:"txId,omitempty"`
+	TxLabel    string `json:"txLabel,omitempty"`
 }
 
 func historyDTO(h query.HistoryEntry) HistoryDTO {
 	return HistoryDTO{
 		ID: h.ID, ConnID: h.ConnID, StartedAt: timeString(h.StartedAt), DurationMs: h.Duration.Milliseconds(),
 		Kind: string(h.Kind), Status: string(h.Status), RowCount: h.RowCount, SQL: h.SQL, Error: h.Error,
+		TxID: h.TxID, TxLabel: h.TxLabel,
 	}
 }
 
@@ -174,6 +201,8 @@ type AuditDTO struct {
 	DurationMs   int64  `json:"durationMs"`
 	SQL          string `json:"sql"`
 	Error        string `json:"error,omitempty"`
+	TxID         string `json:"txId,omitempty"`
+	TxLabel      string `json:"txLabel,omitempty"`
 	Hash         string `json:"hash"`
 }
 
@@ -181,7 +210,7 @@ func auditDTO(e audit.Entry) AuditDTO {
 	return AuditDTO{
 		Seq: e.Seq, At: timeString(e.At), ConnID: e.ConnID, ConnName: e.ConnName, Dialect: e.Dialect, Env: e.Env,
 		Kind: e.Kind, Status: string(e.Status), RowsAffected: e.RowsAffected, DurationMs: e.Duration.Milliseconds(),
-		SQL: e.SQL, Error: e.Error, Hash: hex.EncodeToString(e.Hash),
+		SQL: e.SQL, Error: e.Error, TxID: e.TxID, TxLabel: e.TxLabel, Hash: hex.EncodeToString(e.Hash),
 	}
 }
 

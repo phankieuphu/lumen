@@ -121,3 +121,44 @@ func TestAdvisorOnSQLite(t *testing.T) {
 		t.Fatal("want an error for an unknown connection")
 	}
 }
+
+func TestTransactionsThroughApp(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	a, err := Open(ctx, Config{DataDir: dir, Version: "test", Secrets: &secret.Memory{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close(ctx)
+	c, err := a.CreateConnection(ctx, ConnectionInput{Name: "local", Dialect: "sqlite", Database: filepath.Join(dir, "data.db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.RunQuery(ctx, RunInput{RequestID: "c", ConnID: c.ID, SQL: "CREATE TABLE t (id INTEGER)"}); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := a.BeginTx(ctx, c.ID, " cleanup ")
+	if err != nil || tx.Label != "cleanup" || tx.StartedAt == "" {
+		t.Fatalf("begin = %+v, %v", tx, err)
+	}
+	sum, err := a.RunQuery(ctx, RunInput{RequestID: "i", ConnID: c.ID, SQL: "INSERT INTO t VALUES (1)", TxID: tx.ID})
+	if err != nil || sum.TxID != tx.ID || sum.TxLabel != "cleanup" {
+		t.Fatalf("insert = %+v, %v", sum, err)
+	}
+	open, _ := a.Transactions(ctx)
+	if len(open) != 1 || open[0].Writes != 1 {
+		t.Fatalf("open = %+v", open)
+	}
+	hs, err := a.TransactionHistory(ctx, tx.ID)
+	if err != nil || len(hs) != 2 || hs[1].TxID != tx.ID {
+		t.Fatalf("tx history = %+v, %v", hs, err)
+	}
+	// Deleting the connection rolls back first; its pool could not close
+	// while the transaction holds a session.
+	if err := a.DeleteConnection(ctx, c.ID); err != nil {
+		t.Fatal(err)
+	}
+	if open, _ := a.Transactions(ctx); len(open) != 0 {
+		t.Fatalf("still open after delete: %+v", open)
+	}
+}
