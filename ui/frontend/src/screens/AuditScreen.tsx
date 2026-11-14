@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { type AuditEntry, type AuditFilter, type Connection, errorMessage, type ExportFormat, type VerifyResult, useBackend } from "../api";
 import { Icon } from "../components/icons";
 import { type ItemColumn, ItemGrid } from "../components/ItemGrid";
-import { Banner, EnvBadge, EnvDot, ErrorText, Field, KindBadge, Segmented, StatusBadge } from "../components/ui";
+import { Banner, EnvBadge, EnvDot, ErrorText, Field, KindBadge, Segmented, StatusBadge, TxTag } from "../components/ui";
 import { usePaged } from "../hooks/usePaged";
 import { dialectName, formatCount, formatDuration, formatTime, oneLine } from "../lib/format";
 
@@ -16,6 +16,7 @@ const columns: ItemColumn<AuditEntry>[] = [
   { key: "at", title: "Time", width: 196, render: (e) => <span className="mono muted">{formatTime(e.at)}</span> },
   { key: "kind", title: "Kind", width: 80, render: (e) => <KindBadge kind={e.kind} /> },
   { key: "sql", title: "Statement", width: 320, render: (e) => <span className="mono">{oneLine(e.sql)}</span> },
+  { key: "tx", title: "Transaction", width: 130, render: (e) => e.txId && <TxTag id={e.txId} label={e.txLabel} /> },
   {
     key: "conn",
     title: "Connection",
@@ -197,6 +198,14 @@ function AuditDetail({ entry, onOpen }: { entry: AuditEntry; onOpen: Props["onOp
             <dt>Duration</dt>
             <dd>{formatDuration(entry.durationMs)}</dd>
           </div>
+          {entry.txId && (
+            <div>
+              <dt>Transaction</dt>
+              <dd>
+                <TxTag id={entry.txId} label={entry.txLabel} /> <span className="mono muted small-text">{entry.txId}</span>
+              </dd>
+            </div>
+          )}
         </dl>
         <div className="field-label">Statement</div>
         <pre className="sql-preview">{entry.sql}</pre>

@@ -35,7 +35,7 @@ func TestOpenCreatesPrivateFileAndMigrates(t *testing.T) {
 	if err := s.DB().QueryRowContext(t.Context(), `SELECT MAX(version) FROM schema_migrations`).Scan(&v); err != nil {
 		t.Fatal(err)
 	}
-	if v != 1 {
+	if v != 2 {
 		t.Fatalf("version = %d", v)
 	}
 }

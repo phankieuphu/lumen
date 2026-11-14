@@ -20,13 +20,14 @@ const PAGE_SIZE = 500;
  * useQueryRunner runs one statement at a time on connId and streams its rows
  * into a ResultStore. Only the current request may touch the store or the
  * state; a request that was cancelled or superseded is ignored. onFinish is
- * called after every request, whatever its outcome.
+ * called after every request, whatever its outcome, with the summary when
+ * there is one. With txId set, statements run inside that transaction.
  *
  * Pages arrive as events, apart from the call's result, so the last ones can
  * land after runQuery resolves. The store therefore keeps taking pages for
  * the request it shows until the next run replaces it.
  */
-export function useQueryRunner(connId: string, onFinish?: () => void) {
+export function useQueryRunner(connId: string, onFinish?: (summary?: Summary) => void, txId?: string) {
   const backend = useBackend();
   const store = useMemo(() => new ResultStore(), []);
   const [state, setState] = useState<RunState>({ phase: "idle" });
@@ -54,8 +55,9 @@ export function useQueryRunner(connId: string, onFinish?: () => void) {
       shown.current = requestId;
       store.clear();
       setState({ phase: "running" });
+      let summary: Summary | undefined;
       try {
-        const summary = await backend.runQuery({ requestId, connId, sql, pageSize: PAGE_SIZE, confirmWrite });
+        summary = await backend.runQuery({ requestId, connId, sql, pageSize: PAGE_SIZE, confirmWrite, txId });
         if (current()) setState({ phase: "done", summary });
       } catch (err) {
         if (current()) {
@@ -63,10 +65,10 @@ export function useQueryRunner(connId: string, onFinish?: () => void) {
         }
       } finally {
         if (current()) active.current = null;
-        finished.current?.();
+        finished.current?.(summary);
       }
     },
-    [backend, connId, store],
+    [backend, connId, store, txId],
   );
 
   /** stop asks the backend to cancel the running request. */

@@ -26,6 +26,31 @@ func (p *API) CancelQuery(ctx context.Context, requestID string) error {
 	return p.a.CancelQuery(ctx, requestID)
 }
 
+// BeginTx forwards to App.BeginTx.
+func (p *API) BeginTx(ctx context.Context, connID, label string) (TxDTO, error) {
+	return p.a.BeginTx(ctx, connID, label)
+}
+
+// CommitTx forwards to App.CommitTx.
+func (p *API) CommitTx(ctx context.Context, txID string) (SummaryDTO, error) {
+	return p.a.CommitTx(ctx, txID)
+}
+
+// RollbackTx forwards to App.RollbackTx.
+func (p *API) RollbackTx(ctx context.Context, txID string) (SummaryDTO, error) {
+	return p.a.RollbackTx(ctx, txID)
+}
+
+// Transactions forwards to App.Transactions.
+func (p *API) Transactions(ctx context.Context) ([]TxDTO, error) {
+	return p.a.Transactions(ctx)
+}
+
+// TransactionHistory forwards to App.TransactionHistory.
+func (p *API) TransactionHistory(ctx context.Context, txID string) ([]HistoryDTO, error) {
+	return p.a.TransactionHistory(ctx, txID)
+}
+
 // QueryHistory forwards to App.QueryHistory.
 func (p *API) QueryHistory(ctx context.Context, connID string, beforeID int64, limit int) ([]HistoryDTO, error) {
 	return p.a.QueryHistory(ctx, connID, beforeID, limit)

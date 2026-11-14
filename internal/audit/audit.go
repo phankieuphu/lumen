@@ -55,8 +55,11 @@ type Entry struct {
 	Duration     time.Duration
 	SQL          string
 	Error        string
-	PrevHash     []byte
-	Hash         []byte
+	// TxID and TxLabel tag a statement run inside an explicit transaction.
+	TxID     string
+	TxLabel  string
+	PrevHash []byte
+	Hash     []byte
 }
 
 // Log is the audit log. It is safe for concurrent use.
@@ -77,6 +80,9 @@ func (l *Log) Append(ctx context.Context, e Entry) (Entry, error) {
 	defer l.mu.Unlock()
 
 	e.SQL = truncate(sqlscan.RedactSecrets(e.SQL, sqlscan.Dialect(e.Dialect)))
+	if e.TxID == "" {
+		e.TxLabel = "" // a label is only hashed with its transaction
+	}
 	e.At = time.Now().UTC().Truncate(time.Millisecond)
 
 	tx, err := l.db.BeginTx(ctx, nil) // store opens with _txlock=immediate
@@ -99,10 +105,11 @@ func (l *Log) Append(ctx context.Context, e Entry) (Entry, error) {
 	e.Hash = hash(e)
 
 	_, err = tx.ExecContext(ctx, `INSERT INTO audit_log
-		(seq, at, conn_id, conn_name, dialect, env, kind, status, rows_affected, duration_ms, sql_text, error, prev_hash, hash)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(seq, at, conn_id, conn_name, dialect, env, kind, status, rows_affected, duration_ms, sql_text, error,
+		tx_id, tx_label, prev_hash, hash)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.Seq, store.FormatTime(e.At), e.ConnID, e.ConnName, e.Dialect, e.Env, e.Kind, string(e.Status),
-		e.RowsAffected, e.Duration.Milliseconds(), e.SQL, e.Error, e.PrevHash, e.Hash)
+		e.RowsAffected, e.Duration.Milliseconds(), e.SQL, e.Error, e.TxID, e.TxLabel, e.PrevHash, e.Hash)
 	if err != nil {
 		return Entry{}, fmt.Errorf("audit: insert: %w", err)
 	}
@@ -114,6 +121,8 @@ func (l *Log) Append(ctx context.Context, e Entry) (Entry, error) {
 
 // hash computes SHA-256 over the previous hash and a length-prefixed
 // encoding of every field, so no two different entries encode the same.
+// The transaction fields came later: they are encoded only when TxID is
+// set, so entries written before them keep their hashes.
 func hash(e Entry) []byte {
 	h := sha256.New()
 	h.Write(e.PrevHash)
@@ -138,6 +147,10 @@ func hash(e Entry) []byte {
 	writeInt(e.Duration.Milliseconds())
 	writeStr(e.SQL)
 	writeStr(e.Error)
+	if e.TxID != "" {
+		writeStr(e.TxID)
+		writeStr(e.TxLabel)
+	}
 	return h.Sum(nil)
 }
 
