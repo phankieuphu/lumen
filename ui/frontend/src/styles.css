@@ -520,6 +520,86 @@ button:focus-visible {
   color: var(--accent-fg);
 }
 
+/* Transactions: the tag colour is per transaction (--tx-hue, set inline). */
+.tx-tag {
+  --tx-hue: 200;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 1px 7px;
+  border: 1px solid hsl(var(--tx-hue) 55% 60% / 0.35);
+  border-radius: 4px;
+  background: hsl(var(--tx-hue) 55% 55% / 0.12);
+  color: hsl(var(--tx-hue) 75% 76%);
+  font: 500 11px/16px var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+button.tx-tag {
+  height: auto;
+  cursor: pointer;
+}
+
+button.tx-tag:hover {
+  border-color: hsl(var(--tx-hue) 70% 70%);
+}
+
+.tx-tag-mark {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: hsl(var(--tx-hue) 70% 65%);
+}
+
+.tx-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: var(--radius);
+  background: var(--warn-wash);
+  font-size: 13px;
+}
+
+.tx-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 0 3px var(--warn-tint);
+}
+
+.tx-label-input {
+  width: 260px;
+}
+
+/* While a transaction is open the editor carries a warning edge. */
+.query.in-tx .editor {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+
+.tx-status {
+  color: var(--warn);
+}
+
+.tx-filter {
+  align-items: center;
+  gap: 10px;
+}
+
 .conn-pill {
   display: inline-flex;
   align-items: center;

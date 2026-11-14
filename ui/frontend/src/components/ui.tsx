@@ -1,7 +1,8 @@
 // Small presentational pieces shared across screens.
-import { type ReactNode, useEffect, useRef } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 
 import type { Connection, Env, Kind, Status } from "../api";
+import { txHue, txTagText } from "../lib/format";
 import { Icon } from "./icons";
 
 export function Badge({ tone, children }: { tone: string; children: ReactNode }) {
@@ -11,6 +12,38 @@ export function Badge({ tone, children }: { tone: string; children: ReactNode })
 export const EnvBadge = ({ env }: { env: Env | string }) => <Badge tone={env}>{env}</Badge>;
 export const StatusBadge = ({ status }: { status: Status }) => <Badge tone={status}>{status}</Badge>;
 export const KindBadge = ({ kind }: { kind: Kind | string }) => <Badge tone={`kind-${kind}`}>{kind}</Badge>;
+
+/**
+ * TxTag marks something that ran inside a transaction: its label, or a
+ * short id, in a colour fixed per transaction. With onClick it is a button.
+ */
+export function TxTag({ id, label, onClick }: { id: string; label?: string; onClick?: () => void }) {
+  const props = {
+    className: "tx-tag",
+    style: { "--tx-hue": txHue(id) } as CSSProperties,
+    title: label ? `Transaction ${label} (${id})` : `Transaction ${id}`,
+  };
+  const body = (
+    <>
+      <span className="tx-tag-mark" aria-hidden="true" />
+      {txTagText(id, label)}
+    </>
+  );
+  return onClick ? (
+    <button
+      type="button"
+      {...props}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      {body}
+    </button>
+  ) : (
+    <span {...props}>{body}</span>
+  );
+}
 
 /** EnvDot is the coloured environment marker; the env name is next to it or in its title. */
 export const EnvDot = ({ env }: { env: Env | string }) => <span className={`dot dot-${env}`} title={env} aria-hidden="true" />;
