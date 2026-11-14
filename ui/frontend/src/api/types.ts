@@ -45,6 +45,26 @@ export interface RunInput {
   maxRows?: number;
   confirmWrite?: boolean;
   timeoutMs?: number;
+  /** Runs the statement inside this open transaction. */
+  txId?: string;
+}
+
+/** An open transaction (TxDTO). */
+export interface Transaction {
+  id: string;
+  connId: string;
+  label?: string;
+  startedAt: string;
+  statements: number;
+  writes: number;
+}
+
+export type TxEnd = "commit" | "rollback";
+
+/** Tags on anything that ran inside a transaction. */
+export interface TxTagged {
+  txId?: string;
+  txLabel?: string;
 }
 
 export interface Page {
@@ -54,7 +74,7 @@ export interface Page {
   rows: Row[];
 }
 
-export interface Summary {
+export interface Summary extends TxTagged {
   requestId: string;
   kind: Kind;
   status: Status;
@@ -64,9 +84,11 @@ export interface Summary {
   truncated: boolean;
   durationMs: number;
   error?: string;
+  /** Set when this request ended the transaction (typed COMMIT/ROLLBACK). */
+  txEnd?: TxEnd;
 }
 
-export interface HistoryEntry {
+export interface HistoryEntry extends TxTagged {
   id: number;
   connId: string;
   startedAt: string;
@@ -86,7 +108,7 @@ export interface AuditFilter {
   limit?: number;
 }
 
-export interface AuditEntry {
+export interface AuditEntry extends TxTagged {
   seq: number;
   at: string;
   connId: string;
@@ -309,6 +331,15 @@ export interface Backend {
   /** Subscribes to every query page; returns an unsubscribe function. */
   onPage(fn: (page: Page) => void): () => void;
   queryHistory(connId: string, beforeId: number, limit: number): Promise<HistoryEntry[]>;
+
+  /** Opens a transaction; statements run with its id stay in it. */
+  beginTx(connId: string, label: string): Promise<Transaction>;
+  commitTx(txId: string): Promise<Summary>;
+  rollbackTx(txId: string): Promise<Summary>;
+  /** Open transactions on every connection. */
+  transactions(): Promise<Transaction[]>;
+  /** Every statement of one transaction, oldest first. */
+  transactionHistory(txId: string): Promise<HistoryEntry[]>;
   /** Tables, columns, and foreign keys of the connection's database. */
   schema(connId: string): Promise<DbSchema>;
 
