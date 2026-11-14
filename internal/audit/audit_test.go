@@ -223,3 +223,46 @@ func BenchmarkAppend(b *testing.B) {
 		}
 	}
 }
+
+func TestTransactionTagsAreHashedAndRead(t *testing.T) {
+	l, _ := newLog(t)
+	ctx := t.Context()
+	plain := entry(1)
+	plain.TxLabel = "stray" // dropped: a label needs a transaction
+	got, err := l.Append(ctx, plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TxLabel != "" {
+		t.Fatalf("label kept without tx: %q", got.TxLabel)
+	}
+	// An untagged entry hashes exactly as before transaction tags existed.
+	if !bytes.Equal(hash(got), hashWithoutTx(got)) {
+		t.Fatal("untagged entry hash changed")
+	}
+
+	tagged := entry(2)
+	tagged.TxID, tagged.TxLabel = "tx-1", "fix order 42"
+	got, err = l.Append(ctx, tagged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(hash(got), hashWithoutTx(got)) {
+		t.Fatal("transaction tag not covered by the hash")
+	}
+	es, err := l.List(ctx, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if es[1].TxID != "tx-1" || es[1].TxLabel != "fix order 42" || es[0].TxID != "" {
+		t.Fatalf("read back = %+v", es)
+	}
+	if v, err := l.Verify(ctx); err != nil || !v.OK {
+		t.Fatalf("verify = %+v, %v", v, err)
+	}
+}
+
+func hashWithoutTx(e Entry) []byte {
+	e.TxID, e.TxLabel = "", ""
+	return hash(e)
+}
