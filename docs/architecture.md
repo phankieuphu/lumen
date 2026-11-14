@@ -36,6 +36,17 @@ UI ──Run(req)──▶ app ──▶ query.Runner
                            ▼ 7. history row in store
 ```
 
+Transactions: `Runner.Begin(connID, label)` pins one session and runs `BEGIN`
+on it; requests carrying its `TxID` run on that session until `Commit` or
+`Rollback` (typed `COMMIT`/`ROLLBACK` go through the same path). Typed
+`BEGIN`/`COMMIT`/`ROLLBACK` outside one are blocked, since a pooled session
+would carry the transaction off. One transaction per connection; open ones are
+rolled back before a connection is saved, deleted, or the app closes. History
+rows and audit entries of its statements carry `tx_id` and `tx_label`, and a
+transaction that wrote anything gets an audit entry for its `COMMIT` or
+`ROLLBACK`. The audit hash covers the tags only when set, so older entries keep
+their hashes.
+
 Cancel: `Runner.Cancel(requestID)` cancels the request context **and** sends an
 engine-side cancel (`pg_cancel` request, `KILL QUERY <id>`, SQLite interrupt).
 
