@@ -31,6 +31,9 @@ type HistoryEntry struct {
 	RowCount  int64
 	SQL       string
 	Error     string
+	// TxID and TxLabel tag statements run inside a transaction.
+	TxID    string
+	TxLabel string
 }
 
 // History stores the query history in the local store.
@@ -43,10 +46,10 @@ func NewHistory(s *store.Store) *History { return &History{db: s.DB()} }
 func (h *History) Add(ctx context.Context, e HistoryEntry) error {
 	q := clip(sqlscan.RedactSecrets(e.SQL, sqlscan.Dialect(e.Dialect)), maxHistorySQL)
 	_, err := h.db.ExecContext(ctx, `INSERT INTO query_history
-		(conn_id, started_at, duration_ms, kind, status, row_count, sql_text, error)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		(conn_id, started_at, duration_ms, kind, status, row_count, sql_text, error, tx_id, tx_label)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.ConnID, store.FormatTime(e.StartedAt), e.Duration.Milliseconds(), string(e.Kind), string(e.Status),
-		e.RowCount, q, clip(e.Error, maxHistoryError))
+		e.RowCount, q, clip(e.Error, maxHistoryError), e.TxID, e.TxLabel)
 	if err != nil {
 		return fmt.Errorf("query: history add: %w", err)
 	}
@@ -63,13 +66,32 @@ func (h *History) List(ctx context.Context, connID string, beforeID int64, limit
 	if beforeID <= 0 {
 		beforeID = 1<<63 - 1
 	}
-	rows, err := h.db.QueryContext(ctx, `SELECT id, conn_id, started_at, duration_ms, kind, status, row_count,
-		sql_text, error FROM query_history
+	rows, err := h.db.QueryContext(ctx, `SELECT `+historyCols+` FROM query_history
 		WHERE (? = '' OR conn_id = ?) AND id < ? ORDER BY id DESC LIMIT ?`,
 		connID, connID, beforeID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query: history list: %w", err)
 	}
+	return scanHistory(rows, limit)
+}
+
+// ListTx returns the statements of one transaction, oldest first, up to
+// MaxHistoryPage of them.
+func (h *History) ListTx(ctx context.Context, txID string) ([]HistoryEntry, error) {
+	if txID == "" {
+		return nil, nil
+	}
+	rows, err := h.db.QueryContext(ctx, `SELECT `+historyCols+` FROM query_history
+		WHERE tx_id = ? ORDER BY id LIMIT ?`, txID, MaxHistoryPage)
+	if err != nil {
+		return nil, fmt.Errorf("query: history list: %w", err)
+	}
+	return scanHistory(rows, MaxHistoryPage)
+}
+
+const historyCols = `id, conn_id, started_at, duration_ms, kind, status, row_count, sql_text, error, tx_id, tx_label`
+
+func scanHistory(rows *sql.Rows, limit int) ([]HistoryEntry, error) {
 	defer func() { _ = rows.Close() }()
 	out := make([]HistoryEntry, 0, min(limit, 64))
 	for rows.Next() {
@@ -78,9 +100,10 @@ func (h *History) List(ctx context.Context, connID string, beforeID int64, limit
 			at, kind, status string
 			durMs            int64
 		)
-		if err := rows.Scan(&e.ID, &e.ConnID, &at, &durMs, &kind, &status, &e.RowCount, &e.SQL, &e.Error); err != nil {
+		if err := rows.Scan(&e.ID, &e.ConnID, &at, &durMs, &kind, &status, &e.RowCount, &e.SQL, &e.Error, &e.TxID, &e.TxLabel); err != nil {
 			return nil, fmt.Errorf("query: history scan: %w", err)
 		}
+		var err error
 		if e.StartedAt, err = store.ParseTime(at); err != nil {
 			return nil, err
 		}

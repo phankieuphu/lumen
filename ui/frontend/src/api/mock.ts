@@ -1,7 +1,7 @@
 // In-memory backend for `npm run dev` in a plain browser. It is loaded only
 // in development builds (see index.ts) and never ships in dist/.
 import { createMockFeatures } from "./mockFeatures";
-import type { AuditEntry, Backend, Connection, DbSchema, ForeignKey, HistoryEntry, Kind, Page, Row, Status, Summary, Table } from "./types";
+import type { AuditEntry, Backend, Connection, DbSchema, ForeignKey, HistoryEntry, Kind, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
@@ -71,6 +71,7 @@ export function createMockBackend(): Backend {
   const audit: AuditEntry[] = [];
   const pageListeners = new Set<(p: Page) => void>();
   const cancelled = new Set<string>();
+  const txs = new Map<string, Transaction>();
 
   const add = (c: Omit<Connection, "id" | "createdAt" | "updatedAt">) => {
     const conn = { ...c, id: `c${nextId++}`, createdAt: now(), updatedAt: now() };
@@ -80,12 +81,28 @@ export function createMockBackend(): Backend {
   add({ name: "local postgres", dialect: "postgres", host: "localhost", port: 5432, user: "lumen", database: "lumen", tls: "disable", env: "dev", readOnly: false, maxConns: 4 });
   add({ name: "orders prod", dialect: "mysql", host: "db.internal", port: 3306, user: "app", database: "orders", tls: "require", env: "prod", readOnly: false, maxConns: 4 });
 
-  const record = (connId: string, sql: string, sum: Summary) => {
-    history.unshift({ id: history.length + 1, connId, startedAt: now(), durationMs: sum.durationMs, kind: sum.kind, status: sum.status, rowCount: sum.rowCount, sql, error: sum.error });
-    if (sum.kind === "write" || sum.kind === "schema") {
+  const record = (connId: string, sql: string, sum: Summary, audited = sum.kind === "write" || sum.kind === "schema") => {
+    const tags = { txId: sum.txId, txLabel: sum.txLabel };
+    history.unshift({ id: history.length + 1, connId, startedAt: now(), durationMs: sum.durationMs, kind: sum.kind, status: sum.status, rowCount: sum.rowCount, sql, error: sum.error, ...tags });
+    if (audited) {
       const c = conns.find((x) => x.id === connId);
-      audit.push({ seq: audit.length + 1, at: now(), connId, connName: c?.name ?? "", dialect: c?.dialect ?? "", env: c?.env ?? "", kind: sum.kind, status: sum.status, rowsAffected: sum.rowsAffected, durationMs: sum.durationMs, sql, error: sum.error, hash: Math.random().toString(16).slice(2).padEnd(64, "0") });
+      audit.push({ seq: audit.length + 1, at: now(), connId, connName: c?.name ?? "", dialect: c?.dialect ?? "", env: c?.env ?? "", kind: sum.kind, status: sum.status, rowsAffected: sum.rowsAffected, durationMs: sum.durationMs, sql, error: sum.error, ...tags, hash: Math.random().toString(16).slice(2).padEnd(64, "0") });
     }
+  };
+
+  // Mirrors query.Runner's transactions: one per connection, tagged rows.
+  const endTx = (tx: Transaction, how: TxEnd, requestId = tx.id): Summary => {
+    txs.delete(tx.id);
+    const sum: Summary = { requestId, kind: "session", status: "ok", columns: null, rowCount: 0, rowsAffected: -1, truncated: false, durationMs: 4, txId: tx.id, txLabel: tx.label, txEnd: how };
+    record(tx.connId, how.toUpperCase(), sum, tx.writes > 0);
+    return sum;
+  };
+  const txWord = (sql: string) => {
+    const w = sql.trim().split(/\s+/).map((x) => x.replace(/;$/, "").toLowerCase());
+    if (w[0] === "begin" || (w[0] === "start" && w[1] === "transaction")) return "begin";
+    if ((w[0] === "commit" || w[0] === "end") && w[1] !== "prepared") return "commit";
+    if ((w[0] === "rollback" || w[0] === "abort") && !w.includes("to")) return "rollback";
+    return undefined;
   };
 
   return {
@@ -107,16 +124,34 @@ export function createMockBackend(): Backend {
       if (input.dialect !== "sqlite" && !input.host) throw new Error("conn: host is required");
     },
 
-    async runQuery({ requestId, connId, sql, pageSize = 500, maxRows = 100_000, confirmWrite }) {
+    async runQuery({ requestId, connId, sql, pageSize = 500, maxRows = 100_000, confirmWrite, txId }) {
       const conn = conns.find((c) => c.id === connId);
       const kind = classify(sql);
       const started = performance.now();
+      const tx = txId ? txs.get(txId) : undefined;
+      if (txId && (!tx || tx.connId !== connId)) throw new Error("query: no open transaction with this ID");
       const finish = (status: Status, extra: Partial<Summary> = {}) => {
-        const sum: Summary = { requestId, kind, status, columns: null, rowCount: 0, rowsAffected: -1, truncated: false, durationMs: Math.round(performance.now() - started), ...extra };
+        const sum: Summary = { requestId, kind, status, columns: null, rowCount: 0, rowsAffected: -1, truncated: false, durationMs: Math.round(performance.now() - started), txId: tx?.id, txLabel: tx?.label, ...extra };
         record(connId, sql, sum);
+        if (tx) {
+          tx.statements++;
+          if (status === "ok" && (kind === "write" || kind === "schema")) tx.writes++;
+        }
         return sum;
       };
       if (!sql.trim()) throw new Error("query: no statement to run");
+      const op = txWord(sql);
+      if (op && !tx) {
+        const msg = "query: start transactions with Begin; COMMIT and ROLLBACK run inside one";
+        finish("blocked", { error: msg });
+        throw new Error(msg);
+      }
+      if (op === "begin") {
+        const msg = "query: a transaction is already open on this connection; commit or roll it back first";
+        finish("blocked", { error: msg });
+        throw new Error(msg);
+      }
+      if (tx && op) return endTx(tx, op, requestId);
       if (conn?.env === "prod" && kind !== "read" && kind !== "session" && !confirmWrite) {
         finish("blocked", { error: "query: writes on a production connection need confirmation" });
         throw new Error("query: writes on a production connection need confirmation");
@@ -161,6 +196,32 @@ export function createMockBackend(): Backend {
     },
     queryHistory: async (connId, beforeId, limit) =>
       history.filter((h) => h.connId === connId && (beforeId <= 0 || h.id < beforeId)).slice(0, limit),
+
+    async beginTx(connId, label) {
+      if ([...txs.values()].some((t) => t.connId === connId)) {
+        throw new Error("query: a transaction is already open on this connection; commit or roll it back first");
+      }
+      await sleep(60);
+      const id = `tx-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`;
+      const tx: Transaction = { id, connId, label: label.trim().replace(/\s+/g, " ").slice(0, 80) || undefined, startedAt: now(), statements: 0, writes: 0 };
+      txs.set(id, tx);
+      record(connId, "BEGIN", { requestId: id, kind: "session", status: "ok", columns: null, rowCount: 0, rowsAffected: -1, truncated: false, durationMs: 2, txId: id, txLabel: tx.label }, false);
+      return { ...tx };
+    },
+    async commitTx(txId) {
+      const tx = txs.get(txId);
+      if (!tx) throw new Error("query: no open transaction with this ID");
+      await sleep(80);
+      return endTx(tx, "commit");
+    },
+    async rollbackTx(txId) {
+      const tx = txs.get(txId);
+      if (!tx) throw new Error("query: no open transaction with this ID");
+      await sleep(80);
+      return endTx(tx, "rollback");
+    },
+    transactions: async () => [...txs.values()].map((t) => ({ ...t })),
+    transactionHistory: async (txId) => history.filter((h) => h.txId === txId).reverse(),
 
     async schema(connId) {
       await sleep(150);

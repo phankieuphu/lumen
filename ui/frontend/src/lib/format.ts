@@ -87,3 +87,13 @@ export function rowToTSV(values: readonly unknown[]): string {
     })
     .join("\t");
 }
+
+/** txHue gives a transaction a stable colour, so its tagged rows match. */
+export function txHue(txId: string): number {
+  let h = 0;
+  for (let i = 0; i < txId.length; i++) h = (h * 31 + txId.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
+/** txTagText is the label, or a short form of the id when there is none. */
+export const txTagText = (txId: string, label?: string) => label || txId.replace(/^tx-/, "").slice(0, 6);

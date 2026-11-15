@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cellText, connTarget, copyValue, dialectName, formatDuration, MAX_CELL_CHARS, oneLine, rowToTSV } from "./format";
+import { cellText, connTarget, copyValue, dialectName, formatDuration, MAX_CELL_CHARS, oneLine, rowToTSV, txHue, txTagText } from "./format";
 
 describe("cellText", () => {
   it.each([
@@ -68,5 +68,19 @@ describe("rowToTSV", () => {
     expect(rowToTSV(["tab\there", 'say "hi"', "two\nlines", '"quoted"'])).toBe(
       '"tab\there"\tsay "hi"\t"two\nlines"\t"""quoted"""',
     );
+  });
+});
+
+describe("transaction tags", () => {
+  it("colour is stable and in range", () => {
+    expect(txHue("tx-0a1b2c3d4e5f")).toBe(txHue("tx-0a1b2c3d4e5f"));
+    for (const id of ["tx-1", "tx-ffffffffffff", ""]) {
+      expect(txHue(id)).toBeGreaterThanOrEqual(0);
+      expect(txHue(id)).toBeLessThan(360);
+    }
+  });
+  it("text prefers the label", () => {
+    expect(txTagText("tx-0a1b2c3d4e5f", "fix order 42")).toBe("fix order 42");
+    expect(txTagText("tx-0a1b2c3d4e5f")).toBe("0a1b2c");
   });
 });
