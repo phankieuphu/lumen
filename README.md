@@ -17,13 +17,13 @@ A dark UI in IBM Plex with an icon rail on the left for switching screens.
 
 | Screen | What it does |
 | --- | --- |
-| **Query editor** | Connections sidebar; CodeMirror SQL editor; run with Ctrl/⌘+Enter and cancel mid-stream. Rows arrive in pages into a virtualized grid with a row cap. Production connections are marked red, and writes on them ask for confirmation |
-| **History** | Past statements for the selected connection with status, kind, time, and row count; click one to reopen it in the editor |
-| **Relations** | Interactive ER diagram (React Flow): tables with PK/FK columns, crow's-foot links between joined columns, auto layout left→right or top→bottom, drag, zoom, minimap. Click a table to highlight its relations and see references; focus on a table and its neighbours; find tables; filter by schema; keys-only view; double-click to query; copy as Mermaid |
+| **Query editor** | Connections sidebar; CodeMirror SQL editor; run with Ctrl/⌘+Enter and cancel mid-stream. Rows arrive in pages into a virtualized grid with a row cap. Production connections are marked red, and writes on them ask for confirmation. Begin a transaction (with an optional label), run statements in it, then commit or roll back |
+| **History** | Past statements for the selected connection with status, kind, time, row count, and transaction tag; click one to reopen it in the editor, or a tag to see that whole transaction |
+| **Relations** | Interactive ER diagram (React Flow): tables with PK/FK columns, crow's-foot links between joined columns, auto layout left→right or top→bottom, drag, zoom, minimap. Click a table to highlight its relations and see references; focus on a table and its neighbours; find tables; filter by schema; keys-only view; feature groups (by relations, name, schema, or your own) drawn as coloured frames you can drag; double-click to query; copy as Mermaid |
 | **Slow-query advisor** ¹ | Slowest queries by share of database time; the current plan with its most expensive step, an AI-suggested index or rewrite, and the plan cost before and after. A fix opens in the editor, so nothing runs until you run it |
 | **Monitor** ¹ | Live sessions, connections, lock waits, cache hit rate, and the longest query, polled every 5 seconds; charts for connections and transactions per second; ending a session; alert rules |
 | **Connections** | Saved PostgreSQL / MySQL / SQLite connections tagged Dev / Staging / Production; add, edit, test, delete. Passwords live in the OS keychain |
-| **Audit log** | Append-only, hash-chained log of writes and schema changes; filter by connection and time, inspect an entry, verify the chain, export CSV or JSON |
+| **Audit log** | Append-only, hash-chained log of writes and schema changes; statements run in a transaction carry its tag; filter by connection and time, inspect an entry, verify the chain, export CSV or JSON |
 | **AI settings** ¹ | Provider (Anthropic, OpenAI-compatible, Ollama), a model per task, privacy switches, and a preview of the exact text a request sends |
 
 ¹ The screen is built, but its backend comes later in [docs/plan.md](docs/plan.md): AI in

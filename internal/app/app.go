@@ -103,6 +103,7 @@ func (a *App) SetEmitter(e Emitter) { a.emitter = e }
 // Close stops every service. It is safe to call once.
 func (a *App) Close(ctx context.Context) error {
 	err := errors.Join(
+		a.runner.Close(ctx), // open transactions roll back before their pools close
 		a.conns.CloseAll(),
 		a.store.EndAppSession(ctx, a.sessionID),
 	)
@@ -131,6 +132,50 @@ func (a *App) RunQuery(ctx context.Context, in RunInput) (SummaryDTO, error) {
 // CancelQuery cancels a running request.
 func (a *App) CancelQuery(ctx context.Context, requestID string) error {
 	return a.runner.Cancel(ctx, requestID)
+}
+
+// BeginTx opens a transaction on a connection. Pass its ID as RunInput.TxID
+// to run statements inside it; label is an optional tag shown in history
+// and the audit log.
+func (a *App) BeginTx(ctx context.Context, connID, label string) (TxDTO, error) {
+	t, err := a.runner.Begin(ctx, connID, label)
+	return txDTO(t), err
+}
+
+// CommitTx commits an open transaction.
+func (a *App) CommitTx(ctx context.Context, txID string) (SummaryDTO, error) {
+	sum, err := a.runner.Commit(ctx, txID)
+	return summaryDTO(sum), err
+}
+
+// RollbackTx rolls back an open transaction.
+func (a *App) RollbackTx(ctx context.Context, txID string) (SummaryDTO, error) {
+	sum, err := a.runner.Rollback(ctx, txID)
+	return summaryDTO(sum), err
+}
+
+// Transactions returns the open transactions, so a reloaded UI can pick
+// them up again.
+func (a *App) Transactions(_ context.Context) ([]TxDTO, error) {
+	ts := a.runner.Transactions()
+	out := make([]TxDTO, len(ts))
+	for i, t := range ts {
+		out[i] = txDTO(t)
+	}
+	return out, nil
+}
+
+// TransactionHistory returns the statements of one transaction, oldest first.
+func (a *App) TransactionHistory(ctx context.Context, txID string) ([]HistoryDTO, error) {
+	hs, err := a.history.ListTx(ctx, txID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]HistoryDTO, len(hs))
+	for i, h := range hs {
+		out[i] = historyDTO(h)
+	}
+	return out, nil
 }
 
 // QueryHistory returns past requests, newest first.
@@ -212,6 +257,10 @@ func (a *App) CreateConnection(ctx context.Context, in ConnectionInput) (Connect
 
 // UpdateConnection saves changes; a nil Password keeps the stored one.
 func (a *App) UpdateConnection(ctx context.Context, id string, in ConnectionInput) (ConnectionDTO, error) {
+	// Saving reopens the pool, which would wait on a pinned transaction.
+	if err := a.runner.RollbackConn(ctx, id); err != nil {
+		a.log.Warn("rollback before update failed", "conn", id, "err", err)
+	}
 	p := in.profile()
 	p.ID = id
 	saved, err := a.conns.Update(ctx, p, in.Password)
@@ -220,6 +269,9 @@ func (a *App) UpdateConnection(ctx context.Context, id string, in ConnectionInpu
 
 // DeleteConnection removes a profile and its stored password.
 func (a *App) DeleteConnection(ctx context.Context, id string) error {
+	if err := a.runner.RollbackConn(ctx, id); err != nil {
+		a.log.Warn("rollback before delete failed", "conn", id, "err", err)
+	}
 	return a.conns.Delete(ctx, id)
 }
 

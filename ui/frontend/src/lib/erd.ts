@@ -130,19 +130,36 @@ export interface Placed {
  * layout places connected tables with dagre (referenced tables first, so
  * parents sit left of / above children) and parks tables without any
  * relation in a grid after them, instead of one endless dagre rank.
+ * Members of a feature group are laid out as one dagre cluster.
  */
-export function layout(g: Graph, sizes: Map<string, { width: number; height: number }>, dir: Direction): Placed[] {
-  const dg = new dagre.graphlib.Graph({ multigraph: true });
-  dg.setGraph({ rankdir: dir, nodesep: 40, ranksep: 110, edgesep: 20, marginx: 20, marginy: 20 });
+export function layout(
+  g: Graph,
+  sizes: Map<string, { width: number; height: number }>,
+  dir: Direction,
+  groups: Group[] = [],
+): Placed[] {
+  const grouped = new Map<string, string>();
+  for (const grp of groups) for (const id of grp.members) if (g.tables.has(id)) grouped.set(id, grp.id);
+
+  const dg = new dagre.graphlib.Graph({ multigraph: true, compound: grouped.size > 0 });
+  // Groups draw a header and padding around their members; leave room.
+  const sep = grouped.size ? GROUP_PAD * 2 + GROUP_HEAD : 0;
+  dg.setGraph({ rankdir: dir, nodesep: 40 + sep, ranksep: 110 + sep, edgesep: 20, marginx: 20, marginy: 20 + sep });
   dg.setDefaultEdgeLabel(() => ({}));
 
   const loose: string[] = [];
   for (const id of g.tables.keys()) {
-    if (!g.adj.get(id)?.size) {
+    // A table with no relation still joins its group's cluster.
+    if (!g.adj.get(id)?.size && !grouped.has(id)) {
       loose.push(id);
       continue;
     }
     dg.setNode(id, { ...sizes.get(id)! });
+    const parent = grouped.get(id);
+    if (parent) {
+      if (!dg.hasNode(parent)) dg.setNode(parent, {});
+      dg.setParent(id, parent);
+    }
   }
   for (const fk of g.edges) {
     if (fkSource(fk) === fkTarget(fk)) continue; // self references don't rank
@@ -155,6 +172,7 @@ export function layout(g: Graph, sizes: Map<string, { width: number; height: num
   if (dg.nodeCount() > 0) {
     dagre.layout(dg);
     for (const id of dg.nodes()) {
+      if (!g.tables.has(id)) continue; // a group cluster
       const n = dg.node(id);
       const { width, height } = sizes.get(id)!;
       // dagre gives centres; React Flow wants top-left corners.
@@ -185,6 +203,193 @@ export function layout(g: Graph, sizes: Map<string, { width: number; height: num
       out.push({ id, x, y, width, height });
       x += width + gap;
       rowH = Math.max(rowH, height);
+    });
+  }
+  return out;
+}
+
+// Feature groups: tables that belong to one area of the product (orders,
+// catalog, auth, …), drawn inside one coloured box.
+
+/** How tables are put into feature groups. */
+export type GroupMode = "none" | "schema" | "prefix" | "related" | "custom";
+
+/** Number of group colours in styles.css (.erd-g0 … .erd-g7). */
+export const GROUP_COLORS = 8;
+/** Space between a group's box and its members, and its header height. */
+export const GROUP_PAD = 16;
+export const GROUP_HEAD = 26;
+
+export interface Group {
+  /** React Flow node id; never a table id. */
+  id: string;
+  label: string;
+  /** Table ids, sorted. */
+  members: string[];
+  /** Index into the group colours. */
+  color: number;
+}
+
+/** CustomGroups maps a table id to the name of the feature it belongs to. */
+export type CustomGroups = Record<string, string>;
+
+export const groupId = (key: string) => `group:${key}`;
+
+/**
+ * featureGroups groups the graph's tables. Automatic modes drop groups of
+ * one table, which say nothing; custom groups are kept as the user made
+ * them. Groups come biggest first, so colours are stable for a schema.
+ */
+export function featureGroups(g: Graph, mode: GroupMode, custom: CustomGroups = {}): Group[] {
+  if (mode === "none") return [];
+  const by = new Map<string, string[]>();
+  const put = (key: string, id: string) => {
+    let list = by.get(key);
+    if (!list) by.set(key, (list = []));
+    list.push(id);
+  };
+  const labels = new Map<string, string>();
+  let min = 2;
+
+  switch (mode) {
+    case "schema":
+      min = 1;
+      for (const [id, t] of g.tables) put(t.schema, id);
+      break;
+    case "prefix":
+      for (const [id, t] of g.tables) put(nameStem(t.name), id);
+      break;
+    case "related": {
+      for (const [id, c] of communities(g)) put(c, id);
+      // Name a cluster after its most connected table.
+      for (const [key, ids] of by) {
+        const [hub] = [...ids].sort((a, b) => (g.adj.get(b)?.size ?? 0) - (g.adj.get(a)?.size ?? 0) || a.localeCompare(b));
+        if (hub) labels.set(key, g.tables.get(hub)!.name);
+      }
+      break;
+    }
+    case "custom":
+      min = 1;
+      for (const id of g.tables.keys()) {
+        const name = custom[id]?.trim();
+        if (name) put(name, id);
+      }
+      break;
+  }
+
+  const out = [...by]
+    .filter(([, ids]) => ids.length >= min)
+    .map(([key, ids]) => ({ key, label: labels.get(key) ?? key, members: ids.sort() }))
+    .sort((a, b) => b.members.length - a.members.length || a.label.localeCompare(b.label));
+  return out.map((grp, i) => ({ id: groupId(grp.key), label: grp.label, members: grp.members, color: i % GROUP_COLORS }));
+}
+
+/**
+ * nameStem is the feature a table name points at: its first word,
+ * singular, so orders, order_lines, and OrderTotals all give "order".
+ */
+export function nameStem(name: string): string {
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return singular(words[0] ?? name.toLowerCase());
+}
+
+function singular(w: string): string {
+  if (w.length > 4 && w.endsWith("ies")) return w.slice(0, -3) + "y";
+  if (/(ss|us|is)$/.test(w)) return w;
+  if (/(s|x|z|ch|sh)es$/.test(w)) return w.slice(0, -2);
+  if (w.length > 1 && w.endsWith("s")) return w.slice(0, -1);
+  return w;
+}
+
+/**
+ * communities clusters tables by their foreign keys with the local-moving
+ * phase of Louvain: each table joins the neighbouring cluster that raises
+ * modularity most, until nothing moves. Tables are visited in id order so
+ * the result is the same on every run. Returns table id → cluster key.
+ */
+export function communities(g: Graph): Map<string, string> {
+  const ids = [...g.tables.keys()].sort();
+  const w = new Map<string, Map<string, number>>();
+  const inc = (a: string, b: string) => {
+    let m = w.get(a);
+    if (!m) w.set(a, (m = new Map()));
+    m.set(b, (m.get(b) ?? 0) + 1);
+  };
+  let m2 = 0;
+  for (const fk of g.edges) {
+    const a = fkSource(fk);
+    const b = fkTarget(fk);
+    if (a === b) continue;
+    inc(a, b);
+    inc(b, a);
+    m2 += 2;
+  }
+  const comm = new Map(ids.map((id) => [id, id]));
+  if (m2 === 0) return comm;
+
+  const deg = new Map(ids.map((id) => [id, [...(w.get(id)?.values() ?? [])].reduce((x, y) => x + y, 0)]));
+  const tot = new Map(deg);
+  for (let pass = 0, moved = true; moved && pass < 32; pass++) {
+    moved = false;
+    for (const id of ids) {
+      const k = deg.get(id)!;
+      if (k === 0) continue;
+      const cur = comm.get(id)!;
+      const links = new Map<string, number>();
+      for (const [n, wt] of w.get(id)!) {
+        const c = comm.get(n)!;
+        links.set(c, (links.get(c) ?? 0) + wt);
+      }
+      tot.set(cur, tot.get(cur)! - k);
+      const gain = (c: string) => (links.get(c) ?? 0) - (tot.get(c)! * k) / m2;
+      let best = cur;
+      let bestGain = gain(cur);
+      for (const c of [...links.keys()].sort()) {
+        const v = gain(c);
+        if (v > bestGain + 1e-9) [best, bestGain] = [c, v];
+      }
+      tot.set(best, tot.get(best)! + k);
+      if (best !== cur) {
+        comm.set(id, best);
+        moved = true;
+      }
+    }
+  }
+  return comm;
+}
+
+export interface GroupBox {
+  group: Group;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** groupBoxes frames each group around its members' current positions. */
+export function groupBoxes(groups: Group[], boxes: Map<string, { x: number; y: number; width: number; height: number }>): GroupBox[] {
+  const out: GroupBox[] = [];
+  for (const group of groups) {
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const id of group.members) {
+      const b = boxes.get(id);
+      if (!b) continue;
+      x0 = Math.min(x0, b.x);
+      y0 = Math.min(y0, b.y);
+      x1 = Math.max(x1, b.x + b.width);
+      y1 = Math.max(y1, b.y + b.height);
+    }
+    if (x0 === Infinity) continue;
+    out.push({
+      group,
+      x: x0 - GROUP_PAD,
+      y: y0 - GROUP_PAD - GROUP_HEAD,
+      width: x1 - x0 + GROUP_PAD * 2,
+      height: y1 - y0 + GROUP_PAD * 2 + GROUP_HEAD,
     });
   }
   return out;

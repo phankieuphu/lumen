@@ -62,7 +62,7 @@ func (l *Log) scan(ctx context.Context, f Filter, fn func(Entry) error) error {
 		where, args = append(where, "seq > ?"), append(args, f.AfterSeq)
 	}
 	q := `SELECT seq, at, conn_id, conn_name, dialect, env, kind, status, rows_affected, duration_ms,
-		sql_text, error, prev_hash, hash FROM audit_log`
+		sql_text, error, tx_id, tx_label, prev_hash, hash FROM audit_log`
 	if len(where) > 0 {
 		q += " WHERE " + strings.Join(where, " AND ") //nolint:gosec // fixed fragments only; values are bound
 	}
@@ -84,7 +84,7 @@ func (l *Log) scan(ctx context.Context, f Filter, fn func(Entry) error) error {
 			durMs  int64
 		)
 		if err := rows.Scan(&e.Seq, &at, &e.ConnID, &e.ConnName, &e.Dialect, &e.Env, &e.Kind, &status,
-			&e.RowsAffected, &durMs, &e.SQL, &e.Error, &e.PrevHash, &e.Hash); err != nil {
+			&e.RowsAffected, &durMs, &e.SQL, &e.Error, &e.TxID, &e.TxLabel, &e.PrevHash, &e.Hash); err != nil {
 			return fmt.Errorf("audit: scan: %w", err)
 		}
 		if e.At, err = store.ParseTime(at); err != nil {
@@ -113,7 +113,7 @@ const (
 
 var csvHeader = []string{
 	"seq", "at", "conn_id", "conn_name", "dialect", "env", "kind", "status",
-	"rows_affected", "duration_ms", "sql", "error", "prev_hash", "hash",
+	"rows_affected", "duration_ms", "sql", "error", "prev_hash", "hash", "tx_id", "tx_label",
 }
 
 // Export streams matching entries to w. JSON is a single array; CSV has a
@@ -143,6 +143,7 @@ func (l *Log) exportCSV(ctx context.Context, w io.Writer, f Filter) error {
 		rec[9] = strconv.FormatInt(e.Duration.Milliseconds(), 10)
 		rec[10], rec[11] = csvSafe(e.SQL), csvSafe(e.Error)
 		rec[12], rec[13] = hex.EncodeToString(e.PrevHash), hex.EncodeToString(e.Hash)
+		rec[14], rec[15] = e.TxID, csvSafe(e.TxLabel)
 		return cw.Write(rec)
 	})
 	if err != nil {
@@ -179,6 +180,8 @@ type jsonEntry struct {
 	Error        string `json:"error,omitempty"`
 	PrevHash     string `json:"prevHash"`
 	Hash         string `json:"hash"`
+	TxID         string `json:"txId,omitempty"`
+	TxLabel      string `json:"txLabel,omitempty"`
 }
 
 func (l *Log) exportJSON(ctx context.Context, w io.Writer, f Filter) error {
@@ -199,6 +202,7 @@ func (l *Log) exportJSON(ctx context.Context, w io.Writer, f Filter) error {
 			Dialect: e.Dialect, Env: e.Env, Kind: e.Kind, Status: e.Status, RowsAffected: e.RowsAffected,
 			DurationMs: e.Duration.Milliseconds(), SQL: e.SQL, Error: e.Error,
 			PrevHash: hex.EncodeToString(e.PrevHash), Hash: hex.EncodeToString(e.Hash),
+			TxID: e.TxID, TxLabel: e.TxLabel,
 		})
 	})
 	if err != nil {

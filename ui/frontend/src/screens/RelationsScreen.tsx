@@ -10,6 +10,7 @@ import {
   Handle,
   MiniMap,
   type Node,
+  type NodeChange,
   type NodeProps,
   Position,
   ReactFlow,
@@ -17,18 +18,24 @@ import {
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
-import { type KeyboardEvent, memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { type Connection, type DbSchema, type ForeignKey, type Table, useBackend } from "../api";
 import { ErrorText } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
 import {
   buildGraph,
+  type CustomGroups,
   type Direction,
+  featureGroups,
   fkId,
   fkSource,
   fkTarget,
   type Graph,
+  type Group,
+  groupBoxes,
+  groupId,
+  type GroupMode,
   layout,
   nodeSize,
   selectSQL,
@@ -46,10 +53,18 @@ interface TableData extends Record<string, unknown> {
   linked: Set<string> | undefined;
   fks: Set<string> | undefined;
   width: number;
+  /** Laid-out height, until React Flow has measured the node. */
+  height: number;
   /** Columns joined to the active table, drawn highlighted. */
   hot?: Set<string>;
 }
 type TableNode = Node<TableData, "table">;
+
+interface FeatureData extends Record<string, unknown> {
+  group: Group;
+}
+type FeatureNode = Node<FeatureData, "feature">;
+type AppNode = TableNode | FeatureNode;
 
 const sideHandles = (col: string) => (
   <>
@@ -87,7 +102,57 @@ const TableNodeView = memo(function TableNodeView({ data }: NodeProps<TableNode>
   );
 });
 
-const nodeTypes = { table: TableNodeView };
+/** A feature group: a coloured frame behind its tables, dragged by its header. */
+const FeatureNodeView = memo(function FeatureNodeView({ data }: NodeProps<FeatureNode>) {
+  const { group } = data;
+  return (
+    <div className={`erd-group erd-g${group.color}`}>
+      <div className="erd-group-head" title="Drag to move the whole group">
+        <span className="erd-group-name">{group.label}</span>
+        <span className="erd-group-count">{group.members.length}</span>
+      </div>
+    </div>
+  );
+});
+
+const nodeTypes = { table: TableNodeView, feature: FeatureNodeView };
+
+const GROUP_MODES: [GroupMode, string][] = [
+  ["none", "No groups"],
+  ["related", "Group by relations"],
+  ["prefix", "Group by name"],
+  ["schema", "Group by schema"],
+  ["custom", "My groups"],
+];
+
+// Grouping is a per-viewer convenience, so it lives in localStorage: the
+// mode for every connection, custom groups per connection. Only table
+// names are stored. Storage can be missing or throw; then it just resets.
+const MODE_KEY = "lumen.erd.groupMode";
+const customKey = (connId: string) => `lumen.erd.groups.${connId}`;
+
+function loadStored<T>(key: string, fallback: T, valid: (v: unknown) => v is T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    const v: unknown = JSON.parse(raw);
+    return valid(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function store(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Not persisted; the choice still holds for this session.
+  }
+}
+
+const isMode = (v: unknown): v is GroupMode => GROUP_MODES.some(([m]) => m === v);
+const isCustom = (v: unknown): v is CustomGroups =>
+  typeof v === "object" && v !== null && !Array.isArray(v) && Object.values(v).every((x) => typeof x === "string");
 
 /** SVG markers for crow's-foot notation; edges reference them by id. */
 function Markers() {
@@ -133,7 +198,7 @@ export function RelationsScreen({ conn, onOpen }: Props) {
       {s.loading && !s.data && <p className="muted pad">Reading schema…</p>}
       {s.data && (
         <ReactFlowProvider>
-          <Diagram schema={s.data} onOpen={onOpen} onRefresh={s.reload} loading={s.loading} />
+          <Diagram connId={conn.id} schema={s.data} onOpen={onOpen} onRefresh={s.reload} loading={s.loading} />
         </ReactFlowProvider>
       )}
     </section>
@@ -141,15 +206,16 @@ export function RelationsScreen({ conn, onOpen }: Props) {
 }
 
 interface DiagramProps {
+  connId: string;
   schema: DbSchema;
   onOpen: (sql: string) => void;
   onRefresh: () => void;
   loading: boolean;
 }
 
-function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
+function Diagram({ connId, schema, onOpen, onRefresh, loading }: DiagramProps) {
   const backend = useBackend();
-  const flow = useReactFlow<TableNode, BuiltInEdge>();
+  const flow = useReactFlow<AppNode, BuiltInEdge>();
   const schemas = useMemo(() => [...new Set(schema.tables.map((t) => t.schema))].sort(), [schema]);
   const [schemaFilter, setSchemaFilter] = useState("");
   const [showViews, setShowViews] = useState(false);
@@ -161,11 +227,32 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
   const [search, setSearch] = useState("");
   const [relayout, setRelayout] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [groupMode, setGroupModeState] = useState<GroupMode>(() => loadStored(MODE_KEY, "none", isMode));
+  const [custom, setCustom] = useState<CustomGroups>(() => loadStored(customKey(connId), {}, isCustom));
+
+  const setGroupMode = (m: GroupMode) => {
+    setGroupModeState(m);
+    store(MODE_KEY, m);
+  };
+  const assignGroup = useCallback(
+    (id: string, name: string) => {
+      setCustom((prev) => {
+        const next = { ...prev };
+        if (name.trim()) next[id] = name.trim();
+        else delete next[id];
+        store(customKey(connId), next);
+        return next;
+      });
+    },
+    [connId],
+  );
 
   const graph = useMemo(
     () => buildGraph(schema, { showViews, schema: schemaFilter, focus: focus?.id, depth: focus?.depth }),
     [schema, showViews, schemaFilter, focus],
   );
+
+  const groups = useMemo(() => featureGroups(graph, groupMode, custom), [graph, groupMode, custom]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<TableNode>([]);
 
@@ -178,7 +265,7 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
       cols.set(id, c);
       sizes.set(id, nodeSize(t, c.length));
     }
-    const placed = layout(graph, sizes, dir);
+    const placed = layout(graph, sizes, dir, groups);
     setNodes(
       placed.map((p) => ({
         id: p.id,
@@ -190,12 +277,13 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
           linked: graph.linked.get(p.id),
           fks: graph.fkCols.get(p.id),
           width: p.width,
+          height: p.height,
         },
       })),
     );
     const t = requestAnimationFrame(() => void flow.fitView({ padding: 0.1, duration: 250 }));
     return () => cancelAnimationFrame(t);
-  }, [graph, keysOnly, dir, relayout, setNodes, flow]);
+  }, [graph, groups, keysOnly, dir, relayout, setNodes, flow]);
 
   // Keep the selection valid when filters remove the table.
   useEffect(() => {
@@ -250,6 +338,56 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
   );
 
   const edges = useMemo(() => buildEdges(graph, nodes, active), [graph, nodes, active]);
+
+  // Group frames follow their tables, so dragging a table stretches its frame.
+  const featureNodes = useMemo<FeatureNode[]>(() => {
+    const at = new Map(nodes.map((n) => [n.id, { x: n.position.x, y: n.position.y, width: n.data.width, height: n.measured?.height ?? n.data.height }]));
+    return groupBoxes(groups, at).map((b) => ({
+      id: b.group.id,
+      type: "feature",
+      position: { x: b.x, y: b.y },
+      width: b.width,
+      height: b.height,
+      zIndex: -1,
+      selectable: false,
+      focusable: false,
+      dragHandle: ".erd-group-head",
+      data: { group: b.group },
+    }));
+  }, [nodes, groups]);
+  const allNodes = useMemo<AppNode[]>(() => [...featureNodes, ...shownNodes], [featureNodes, shownNodes]);
+  const groupOf = useMemo(() => {
+    const m = new Map<string, Group>();
+    for (const grp of groups) for (const id of grp.members) m.set(id, grp);
+    return m;
+  }, [groups]);
+
+  // Dragging a frame moves its members by the same amount.
+  const dragFrom = useRef<{ x: number; y: number }>(undefined);
+  const onNodeDragStart = (_: unknown, n: AppNode) => {
+    if (n.type === "feature") dragFrom.current = { ...n.position };
+  };
+  const onNodeDrag = (_: unknown, n: AppNode) => {
+    if (n.type !== "feature" || !dragFrom.current) return;
+    const dx = n.position.x - dragFrom.current.x;
+    const dy = n.position.y - dragFrom.current.y;
+    dragFrom.current = { ...n.position };
+    if (!dx && !dy) return;
+    const members = new Set(n.data.group.members);
+    setNodes((ns) => ns.map((t) => (members.has(t.id) ? { ...t, position: { x: t.position.x + dx, y: t.position.y + dy } } : t)));
+  };
+  // Frames are derived from their tables; only table changes go to state.
+  const onAllNodesChange = useCallback(
+    (changes: NodeChange<AppNode>[]) =>
+      onNodesChange(changes.filter((c): c is NodeChange<TableNode> => !("id" in c) || !c.id.startsWith(groupId("")))),
+    [onNodesChange],
+  );
+  const onNodeDragStop = () => {
+    dragFrom.current = undefined;
+  };
+
+  const showGroup = (grp: Group) =>
+    void flow.fitView({ nodes: grp.members.map((id) => ({ id })), padding: 0.25, duration: 300, maxZoom: 1.2 });
 
   const focusOn = useCallback(
     (id: string) => {
@@ -308,6 +446,13 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
           <option value="LR">Left → right</option>
           <option value="TB">Top → bottom</option>
         </select>
+        <select value={groupMode} onChange={(e) => setGroupMode(e.target.value as GroupMode)} aria-label="Feature groups">
+          {GROUP_MODES.map(([m, label]) => (
+            <option key={m} value={m}>
+              {label}
+            </option>
+          ))}
+        </select>
         <button type="button" onClick={() => setRelayout((n) => n + 1)} title="Discard dragged positions and lay out again">
           Auto layout
         </button>
@@ -339,6 +484,31 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
           </button>
         </div>
       )}
+      {groupMode !== "none" && (
+        <div className="erd-groups" role="list" aria-label="Feature groups">
+          {groups.length === 0 && (
+            <span className="muted small">
+              {groupMode === "custom"
+                ? "No groups yet. Select a table and give it a feature in the side panel."
+                : "No groups found for the visible tables."}
+            </span>
+          )}
+          {groups.map((grp) => (
+            <button
+              key={grp.id}
+              type="button"
+              role="listitem"
+              className={`erd-chip erd-g${grp.color}`}
+              onClick={() => showGroup(grp)}
+              title={`Show ${grp.label}: ${grp.members.length} tables`}
+            >
+              <span className="erd-dot" aria-hidden="true" />
+              {grp.label}
+              <span className="muted">{grp.members.length}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {schema.truncated && (
         <p className="warn pad small">The schema is large; only the first tables were read. Filter by schema to see the rest.</p>
       )}
@@ -349,13 +519,16 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
             <p className="muted pad">No tables{schemaFilter ? ` in ${schemaFilter}` : ""}.</p>
           ) : (
             <ReactFlow
-              nodes={shownNodes}
+              nodes={allNodes}
               edges={edges}
               nodeTypes={nodeTypes}
-              onNodesChange={onNodesChange}
-              onNodeClick={(_, n) => setSelected(n.id)}
-              onNodeDoubleClick={(_, n) => onOpen(selectSQL(schema.dialect, n.data.table))}
-              onNodeMouseEnter={(_, n) => setHovered(n.id)}
+              onNodesChange={onAllNodesChange}
+              onNodeClick={(_, n) => n.type === "table" && setSelected(n.id)}
+              onNodeDoubleClick={(_, n) => n.type === "table" && onOpen(selectSQL(schema.dialect, n.data.table))}
+              onNodeMouseEnter={(_, n) => n.type === "table" && setHovered(n.id)}
+              onNodeDragStart={onNodeDragStart}
+              onNodeDrag={onNodeDrag}
+              onNodeDragStop={onNodeDragStop}
               onNodeMouseLeave={() => setHovered(undefined)}
               onPaneClick={() => setSelected(undefined)}
               nodesConnectable={false}
@@ -370,7 +543,13 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
             >
               <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
               <Controls showInteractive={false} />
-              <MiniMap pannable zoomable nodeStrokeWidth={2} className="erd-minimap" />
+              <MiniMap
+                pannable
+                zoomable
+                nodeStrokeWidth={2}
+                className="erd-minimap"
+                nodeClassName={(n) => (n.type === "feature" ? `erd-mini-group erd-g${(n.data as FeatureData).group.color}` : "")}
+              />
             </ReactFlow>
           )}
         </div>
@@ -378,6 +557,11 @@ function Diagram({ schema, onOpen, onRefresh, loading }: DiagramProps) {
           <TableDetail
             table={sel}
             graph={graph}
+            group={groupOf.get(tableId(sel))}
+            groupMode={groupMode}
+            customGroup={custom[tableId(sel)] ?? ""}
+            groupNames={[...new Set(Object.values(custom))].sort()}
+            onAssign={(name) => assignGroup(tableId(sel), name)}
             onSelect={focusOn}
             onFocus={() => setFocus({ id: tableId(sel), depth: focus?.depth ?? 1 })}
             onQuery={() => onOpen(selectSQL(schema.dialect, sel))}
@@ -436,13 +620,18 @@ function isOptional(graph: Graph, fk: ForeignKey): boolean {
 interface DetailProps {
   table: Table;
   graph: Graph;
+  group: Group | undefined;
+  groupMode: GroupMode;
+  customGroup: string;
+  groupNames: string[];
+  onAssign: (name: string) => void;
   onSelect: (id: string) => void;
   onFocus: () => void;
   onQuery: () => void;
   onClose: () => void;
 }
 
-function TableDetail({ table, graph, onSelect, onFocus, onQuery, onClose }: DetailProps) {
+function TableDetail({ table, graph, group, groupMode, customGroup, groupNames, onAssign, onSelect, onFocus, onQuery, onClose }: DetailProps) {
   const id = tableId(table);
   const outgoing = graph.edges.filter((fk) => fkSource(fk) === id);
   const incoming = graph.edges.filter((fk) => fkTarget(fk) === id && fkSource(fk) !== id);
@@ -470,6 +659,13 @@ function TableDetail({ table, graph, onSelect, onFocus, onQuery, onClose }: Deta
           Focus
         </button>
       </div>
+      <FeatureField
+        key={tableId(table)}
+        group={groupMode === "custom" ? undefined : group}
+        value={customGroup}
+        names={groupNames}
+        onAssign={onAssign}
+      />
       <h3>Columns ({table.columns.length})</h3>
       <table className="erd-cols">
         <tbody>
@@ -506,5 +702,55 @@ function TableDetail({ table, graph, onSelect, onFocus, onQuery, onClose }: Deta
         ))}
       </ul>
     </aside>
+  );
+}
+
+interface FeatureFieldProps {
+  /** The automatic group, shown read-only above the editable feature. */
+  group: Group | undefined;
+  value: string;
+  names: string[];
+  onAssign: (name: string) => void;
+}
+
+/** FeatureField names the table's feature for "My groups"; blank removes it. */
+function FeatureField({ group, value, names, onAssign }: FeatureFieldProps) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    if (draft.trim() !== value) onAssign(draft);
+  };
+  return (
+    <div className="erd-feature">
+      {group && (
+        <p className="small">
+          <span className={`erd-chip static erd-g${group.color}`}>
+            <span className="erd-dot" aria-hidden="true" />
+            {group.label}
+          </span>
+        </p>
+      )}
+      <label className="small">
+        Feature{" "}
+        <input
+          type="text"
+          list="erd-feature-names"
+          value={draft}
+          placeholder="e.g. billing"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") setDraft(value);
+          }}
+          aria-label="Feature group"
+        />
+      </label>
+      <datalist id="erd-feature-names">
+        {names.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
+    </div>
   );
 }

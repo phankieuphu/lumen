@@ -53,6 +53,9 @@ type Request struct {
 	ConfirmWrite bool
 	// Timeout bounds the statement; 0 means no limit.
 	Timeout time.Duration
+	// TxID runs the statement inside this open transaction (see Begin)
+	// instead of on a fresh pooled session.
+	TxID string
 }
 
 // Page is a batch of rows. Columns is set on the first page only.
@@ -82,6 +85,11 @@ type Summary struct {
 	Truncated    bool  // stopped at MaxRows
 	Duration     time.Duration
 	Error        string
+	// TxID and TxLabel tag a statement run inside a transaction.
+	TxID    string
+	TxLabel string
+	// TxEnd is set when the request ended the transaction.
+	TxEnd TxEnd
 }
 
 // ConnSource provides open connections; *conn.Manager implements it.
@@ -104,9 +112,11 @@ type Runner struct {
 
 	mu     sync.Mutex
 	active map[string]*running
+	txs    map[string]*tx
 }
 
 type running struct {
+	txID      string
 	cancel    context.CancelFunc
 	cancelled atomic.Bool
 	mu        sync.Mutex
@@ -118,7 +128,7 @@ func NewRunner(conns ConnSource, auditor Auditor, history *History, log *slog.Lo
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Runner{conns: conns, audit: auditor, history: history, log: log, active: map[string]*running{}}
+	return &Runner{conns: conns, audit: auditor, history: history, log: log, active: map[string]*running{}, txs: map[string]*tx{}}
 }
 
 // Run executes req and streams rows to sink (nil discards them). It returns a summary for every
@@ -137,11 +147,20 @@ func (r *Runner) Run(ctx context.Context, req Request, sink Sink) (Summary, erro
 		ctx, cancel = context.WithTimeout(ctx, req.Timeout)
 		defer cancel()
 	}
-	run := &running{cancel: cancel}
+	run := &running{cancel: cancel, txID: req.TxID}
 	if err := r.register(req.ID, run); err != nil {
 		return Summary{RequestID: req.ID}, err
 	}
 	defer r.unregister(req.ID)
+
+	var t *tx
+	if req.TxID != "" {
+		var err error
+		if t, err = r.lockTx(req.TxID, req.ConnID); err != nil {
+			return Summary{RequestID: req.ID, TxID: req.TxID}, err
+		}
+		defer t.mu.Unlock()
+	}
 
 	c, prof, err := r.conns.Get(ctx, req.ConnID)
 	if err != nil {
@@ -151,6 +170,21 @@ func (r *Runner) Run(ctx context.Context, req Request, sink Sink) (Summary, erro
 	start := time.Now()
 	cls := Classify(req.SQL, prof.Dialect)
 	sum := Summary{RequestID: req.ID, Kind: cls.Kind, RowsAffected: -1}
+	if t != nil {
+		sum.TxID, sum.TxLabel = t.id, t.label
+	}
+
+	switch op := txControl(req.SQL, prof.Dialect); {
+	case op == txNone:
+	case t == nil:
+		return r.block(ctx, req, prof, &sum, start, ErrTxControl)
+	case op == txBegin:
+		return r.block(ctx, req, prof, &sum, start, ErrTxOpen)
+	case op == txCommit:
+		return r.endLocked(ctx, t, TxCommit, req.ID)
+	default:
+		return r.endLocked(ctx, t, TxRollback, req.ID)
+	}
 
 	if err := checkPolicy(cls, prof, req); err != nil {
 		sum.Status, sum.Error = audit.StatusBlocked, err.Error()
@@ -161,7 +195,18 @@ func (r *Runner) Run(ctx context.Context, req Request, sink Sink) (Summary, erro
 		return sum, err
 	}
 
-	err = r.execute(ctx, c, run, req, cls, sink, &sum)
+	var s driver.Session
+	if t != nil {
+		s = t.session
+		t.statements.Add(1)
+	} else {
+		if s, err = c.Session(ctx); err != nil {
+			sum.Status, sum.Error = audit.StatusError, err.Error()
+			return sum, r.finish(ctx, req, prof, &sum, start, err)
+		}
+		defer func() { _ = s.Close() }()
+	}
+	err = r.execute(ctx, s, run, req, cls, sink, &sum)
 	switch {
 	case err == nil:
 		sum.Status = audit.StatusOK
@@ -171,7 +216,16 @@ func (r *Runner) Run(ctx context.Context, req Request, sink Sink) (Summary, erro
 	default:
 		sum.Status, sum.Error = audit.StatusError, err.Error()
 	}
+	if t != nil && sum.Status == audit.StatusOK && (cls.Kind == KindWrite || cls.Kind == KindSchema) {
+		t.writes.Add(1)
+	}
 	return sum, r.finish(ctx, req, prof, &sum, start, err)
+}
+
+// block records a request stopped before it reached the server.
+func (r *Runner) block(ctx context.Context, req Request, prof conn.Profile, sum *Summary, start time.Time, err error) (Summary, error) {
+	sum.Status, sum.Error = audit.StatusBlocked, err.Error()
+	return *sum, r.finish(ctx, req, prof, sum, start, err)
 }
 
 func normalize(req *Request) error {
@@ -203,14 +257,10 @@ func checkPolicy(cls Classification, prof conn.Profile, req Request) error {
 	return nil
 }
 
-func (r *Runner) execute(ctx context.Context, c driver.Conn, run *running, req Request,
+// execute runs req on s, which the caller owns.
+func (r *Runner) execute(ctx context.Context, s driver.Session, run *running, req Request,
 	cls Classification, sink Sink, sum *Summary,
 ) error {
-	s, err := c.Session(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = s.Close() }()
 	run.mu.Lock()
 	run.session = s
 	run.mu.Unlock()
@@ -320,7 +370,7 @@ func (r *Runner) finish(ctx context.Context, req Request, prof conn.Profile, sum
 		_, err := r.audit.Append(bctx, audit.Entry{
 			ConnID: prof.ID, ConnName: prof.Name, Dialect: string(prof.Dialect), Env: string(prof.Env),
 			Kind: string(sum.Kind), Status: sum.Status, RowsAffected: affected, Duration: sum.Duration,
-			SQL: req.SQL, Error: sum.Error,
+			SQL: req.SQL, Error: sum.Error, TxID: sum.TxID, TxLabel: sum.TxLabel,
 		})
 		if err != nil {
 			r.log.Error("audit append failed", "request", req.ID, "conn", prof.ID, "err", err)
@@ -335,6 +385,7 @@ func (r *Runner) finish(ctx context.Context, req Request, prof conn.Profile, sum
 		if err := r.history.Add(bctx, HistoryEntry{
 			ConnID: prof.ID, Dialect: prof.Dialect, StartedAt: start, Duration: sum.Duration,
 			Kind: sum.Kind, Status: sum.Status, RowCount: rowCount, SQL: req.SQL, Error: sum.Error,
+			TxID: sum.TxID, TxLabel: sum.TxLabel,
 		}); err != nil {
 			r.log.Warn("history append failed", "request", req.ID, "err", err)
 		}

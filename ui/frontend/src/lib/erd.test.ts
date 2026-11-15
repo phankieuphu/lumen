@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import type { DbSchema, Table } from "../api";
-import { buildGraph, layout, nodeSize, qualifiedName, reach, selectSQL, toMermaid, visibleColumns } from "./erd";
+import {
+  buildGraph,
+  communities,
+  featureGroups,
+  GROUP_COLORS,
+  groupBoxes,
+  layout,
+  nameStem,
+  nodeSize,
+  qualifiedName,
+  reach,
+  selectSQL,
+  toMermaid,
+  visibleColumns,
+} from "./erd";
 
 const col = (name: string, type = "int", extra: { pk?: boolean; nullable?: boolean } = {}) => ({
   name,
@@ -91,6 +105,99 @@ describe("layout", () => {
     const at = new Map(placed.map((p) => [p.id, p]));
     const graphBottom = Math.max(...["public.customers", "public.orders", "public.lines", "audit.events"].map((id) => at.get(id)!.y + at.get(id)!.height));
     expect(at.get("public.settings")!.y).toBeGreaterThan(graphBottom);
+  });
+});
+
+describe("feature groups", () => {
+  const g = buildGraph(shop, { showViews: true, schema: "" });
+  const labels = (mode: Parameters<typeof featureGroups>[1], custom = {}) =>
+    featureGroups(g, mode, custom).map((x) => `${x.label}: ${x.members.join(" ")}`);
+
+  it.each([
+    ["orders", "order"],
+    ["order_lines", "order"],
+    ["OrderTotals", "order"],
+    ["categories", "category"],
+    ["addresses", "address"],
+    ["status", "status"],
+    ["boxes", "box"],
+    ["user-roles", "user"],
+    ["x", "x"],
+  ])("nameStem(%s) = %s", (name, want) => {
+    expect(nameStem(name)).toBe(want);
+  });
+
+  it("none makes no groups", () => {
+    expect(featureGroups(g, "none")).toEqual([]);
+  });
+
+  it("schema keeps single-table schemas, biggest first", () => {
+    expect(labels("schema")).toEqual([
+      "public: public.customers public.lines public.orders public.settings public.v_orders",
+      "audit: audit.events",
+    ]);
+  });
+
+  it("prefix groups shared stems and drops groups of one table", () => {
+    expect(labels("prefix")).toEqual([]);
+    const more = { ...shop, tables: [...shop.tables, { schema: "public", name: "order_notes", kind: "table" as const, columns: [] }] };
+    const groups = featureGroups(buildGraph(more, { showViews: true, schema: "" }), "prefix");
+    expect(groups.map((x) => `${x.label}: ${x.members.join(" ")}`)).toEqual(["order: public.order_notes public.orders"]);
+  });
+
+  it("related clusters by foreign keys and names the cluster after its hub", () => {
+    // Two dense clusters joined by one bridge.
+    const t = (name: string): Table => ({ schema: "s", name, kind: "table", columns: [col("id", "int", { pk: true })] });
+    const fk = (from: string, to: string) => ({ name: `${from}_${to}`, fromSchema: "s", fromTable: from, fromColumns: ["id"], toSchema: "s", toTable: to, toColumns: ["id"] });
+    const two: DbSchema = {
+      dialect: "postgres",
+      truncated: false,
+      tables: ["a", "a1", "a2", "b", "b1", "b2", "lonely"].map(t),
+      foreignKeys: [fk("a1", "a"), fk("a2", "a"), fk("a2", "a1"), fk("b1", "b"), fk("b2", "b"), fk("b2", "b1"), fk("b", "a")],
+    };
+    const tg = buildGraph(two, { showViews: true, schema: "" });
+    expect(featureGroups(tg, "related").map((x) => `${x.label}: ${x.members.join(" ")}`)).toEqual([
+      "a: s.a s.a1 s.a2",
+      "b: s.b s.b1 s.b2",
+    ]);
+    // Same input, same clusters.
+    expect([...communities(tg)]).toEqual([...communities(tg)]);
+  });
+
+  it("custom groups trim names and ignore unknown or blank entries", () => {
+    expect(labels("custom", { "public.orders": " Sales ", "public.lines": "Sales", "public.settings": " ", "x.gone": "Sales" })).toEqual([
+      "Sales: public.lines public.orders",
+    ]);
+  });
+
+  it("cycles colours", () => {
+    const many: DbSchema = {
+      dialect: "sqlite",
+      truncated: false,
+      tables: Array.from({ length: GROUP_COLORS + 2 }, (_, i) => ({ schema: `s${i}`, name: "t", kind: "table" as const, columns: [] })),
+      foreignKeys: [],
+    };
+    const groups = featureGroups(buildGraph(many, { showViews: true, schema: "" }), "schema");
+    expect(groups.map((x) => x.color)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 0, 1]);
+  });
+
+  it.each(["LR", "TB"] as const)("lays out members together, clear of other groups and tables (%s)", (dir) => {
+    const groups = featureGroups(g, "custom", { "public.customers": "crm", "audit.events": "crm", "public.orders": "sales", "public.lines": "sales", "public.settings": "sales" });
+    const sizes = new Map([...g.tables].map(([id, t]) => [id, nodeSize(t, t.columns.length)]));
+    const placed = layout(g, sizes, dir, groups);
+    expect(placed.map((p) => p.id).sort()).toEqual(ids(g));
+    const boxes = groupBoxes(groups, new Map(placed.map((p) => [p.id, p])));
+    expect(boxes).toHaveLength(2);
+    const hit = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
+      a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+    for (const box of boxes) {
+      for (const p of placed) {
+        const inside = box.group.members.includes(p.id);
+        if (inside) expect(p.x >= box.x && p.y >= box.y && p.x + p.width <= box.x + box.width && p.y + p.height <= box.y + box.height).toBe(true);
+        else expect(hit(box, p), `${p.id} inside ${box.group.label}`).toBe(false);
+      }
+    }
+    expect(hit(boxes[0]!, boxes[1]!)).toBe(false);
   });
 });
 
