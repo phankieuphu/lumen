@@ -7,7 +7,7 @@ import { tags as t } from "@lezer/highlight";
 import { basicSetup } from "codemirror";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 
-import type { Dialect, SyntaxIssue } from "../api";
+import type { Dialect } from "../api";
 import type { SchemaCompletion } from "../lib/completion";
 
 const dialects: Record<Dialect, SQLDialect> = { postgres: PostgreSQL, mysql: MySQL, sqlite: SQLite };
@@ -47,7 +47,19 @@ const theme = EditorView.theme(
       textDecoration: "underline wavy var(--danger)",
       textUnderlineOffset: "3px",
     },
+    ".cm-lintRange-warning": {
+      backgroundImage: "none",
+      textDecoration: "underline wavy var(--warn)",
+      textUnderlineOffset: "3px",
+    },
+    ".cm-lintRange-info": {
+      backgroundImage: "none",
+      textDecoration: "underline dotted var(--info)",
+      textUnderlineOffset: "3px",
+    },
     ".cm-diagnostic-error": { borderLeft: "3px solid var(--danger)", color: "var(--fg)" },
+    ".cm-diagnostic-warning": { borderLeft: "3px solid var(--warn)", color: "var(--fg)" },
+    ".cm-diagnostic-info": { borderLeft: "3px solid var(--info)", color: "var(--fg)" },
     ".cm-tooltip-lint": { padding: "2px 0" },
   },
   { dark: true },
@@ -105,6 +117,14 @@ const qualifiedNames = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
+/** EditorIssue is a range to mark: a syntax error, or a lint finding. */
+export interface EditorIssue {
+  from: number;
+  to: number;
+  severity: "error" | "warning" | "info";
+  message: string;
+}
+
 /** What Run applies to: the selection, or the statement at the cursor. */
 export interface RunTarget {
   /** The whole editor text. */
@@ -126,8 +146,8 @@ export interface EditorHandle {
 interface Props {
   dialect: Dialect;
   onRun: (target: RunTarget) => void;
-  /** check returns the syntax errors in the text, to underline. */
-  check?: (sql: string) => Promise<SyntaxIssue[]>;
+  /** check returns the problems in the text, to underline. */
+  check?: (sql: string) => Promise<EditorIssue[]>;
   /** The text the editor starts with. */
   initialText?: string;
   /** Called on Mod-S (as = false) and Shift-Mod-S (as = true). */
@@ -214,7 +234,7 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
               return issues.map((i) => ({
                 from: Math.min(i.from, len),
                 to: Math.min(i.to, len),
-                severity: "error",
+                severity: i.severity,
                 message: i.message,
               }));
             },
@@ -242,9 +262,10 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
   }, [dialect, completion]);
 
   useEffect(() => {
-    // Another dialect parses differently: check again now.
+    // Another dialect parses differently, and another connection may have
+    // other rules (production): check again now.
     if (view.current) forceLinting(view.current);
-  }, [dialect]);
+  }, [dialect, check]);
 
   useImperativeHandle(
     ref,

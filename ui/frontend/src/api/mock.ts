@@ -2,7 +2,7 @@
 // in development builds (see index.ts) and never ships in dist/.
 import { splitStatements } from "../lib/statements";
 import { createMockFeatures } from "./mockFeatures";
-import type { AuditEntry, Backend, Connection, DbSchema, ForeignKey, HistoryEntry, Kind, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
+import type { AuditEntry, Backend, Connection, DbSchema, ForeignKey, HistoryEntry, Kind, LintIssue, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
@@ -209,6 +209,23 @@ export function createMockBackend(): Backend {
       if (!files.has(path)) throw new Error("app: save: choose the file with Save As first");
       files.set(path, sql);
       return { path, name: path.split("/").pop() ?? path };
+    },
+    // The real rules are in Go; the mock finds two of them roughly.
+    async lint(_connId, sql) {
+      const out: LintIssue[] = [];
+      for (const r of splitStatements(sql)) {
+        const text = sql.slice(r.from, r.to);
+        const verb = /^(UPDATE|DELETE)\b/i.exec(text);
+        if (verb && !/\bWHERE\b/i.test(text)) {
+          out.push({ from: r.from, to: r.from + verb[0].length, rule: "L001", severity: "error", message: `${verb[0].toUpperCase()} without WHERE changes every row in the table.` });
+        }
+        const star = /^SELECT\s+(\*)/i.exec(text);
+        if (star) {
+          const at = r.from + star[0].length - 1;
+          out.push({ from: at, to: at + 1, rule: "L101", severity: "warning", message: "SELECT * reads every column. Name the columns you need." });
+        }
+      }
+      return out;
     },
     async openSql() {
       const names = [...files.keys()].map((p) => p.split("/").pop()).join(", ");
