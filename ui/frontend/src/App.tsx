@@ -5,10 +5,12 @@ import { Icon, type IconName } from "./components/icons";
 import type { EditorHandle } from "./components/SqlEditor";
 import { ErrorText } from "./components/ui";
 import { useAsync } from "./hooks/useAsync";
+import { useEditorColors } from "./hooks/useEditorColors";
 import { AdvisorScreen } from "./screens/AdvisorScreen";
 import { AuditScreen } from "./screens/AuditScreen";
 import { ConnectionList } from "./screens/ConnectionList";
 import { ConnectionsScreen } from "./screens/ConnectionsScreen";
+import { EditorColorsScreen } from "./screens/EditorColorsScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { MonitorScreen } from "./screens/MonitorScreen";
 import { QueryScreen } from "./screens/QueryScreen";
@@ -17,7 +19,7 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 // React Flow and dagre load only when the diagram is first opened.
 const RelationsScreen = lazy(() => import("./screens/RelationsScreen").then((m) => ({ default: m.RelationsScreen })));
 
-type View = "query" | "history" | "relations" | "advisor" | "monitor" | "connections" | "audit" | "settings";
+type View = "query" | "history" | "relations" | "advisor" | "monitor" | "connections" | "audit" | "colors" | "settings";
 
 const views: { id: View; label: string; icon: IconName }[] = [
   { id: "query", label: "Query editor", icon: "code" },
@@ -29,6 +31,7 @@ const views: { id: View; label: string; icon: IconName }[] = [
   { id: "audit", label: "Audit log", icon: "audit" },
 ];
 // Pinned to the bottom of the rail.
+const colorsView = { id: "colors", label: "Editor colors", icon: "palette" } as const;
 const settingsView = { id: "settings", label: "AI settings", icon: "sliders" } as const;
 
 /** NEW marks the connections screen's form as creating, not editing. */
@@ -44,6 +47,8 @@ export function App() {
   const [editingId, setEditingId] = useState<string>();
   const [historyVersion, setHistoryVersion] = useState(0);
   const editor = useRef<EditorHandle>(null);
+  // Loaded and applied here, so every editor shows the saved colours.
+  const editorColors = useEditorColors();
 
   const conn = connections.find((c) => c.id === selectedId) ?? connections[0];
   // The connection whose diagram was last opened. The diagram stays mounted
@@ -93,6 +98,7 @@ export function App() {
           <RailItem key={v.id} {...v} current={view === v.id} onClick={() => setView(v.id)} />
         ))}
         <span className="spacer" />
+        <RailItem {...colorsView} current={view === "colors"} onClick={() => setView("colors")} />
         <RailItem {...settingsView} current={view === "settings"} onClick={() => setView("settings")} />
       </nav>
       <div className="view">
@@ -152,6 +158,7 @@ export function App() {
         {view === "monitor" && conn && (
           <MonitorScreen conn={conn} connections={connections} onSelectConn={setSelectedId} onAdvisor={() => setView("advisor")} />
         )}
+        {view === "colors" && <EditorColorsScreen {...editorColors} dialect={conn?.dialect ?? "postgres"} />}
         {view === "settings" && <SettingsScreen />}
       </div>
     </div>

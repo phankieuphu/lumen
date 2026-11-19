@@ -88,6 +88,30 @@ export interface Summary extends TxTagged {
   txEnd?: TxEnd;
 }
 
+/** Where one statement sits in the editor text: [from, to), in string indexes. */
+export interface StatementRange {
+  from: number;
+  to: number;
+}
+
+/** A syntax error in the editor text: [from, to), in string indexes. */
+export interface SyntaxIssue {
+  from: number;
+  to: number;
+  message: string;
+}
+
+/** A file the editor's SQL was saved to. */
+export interface SavedFile {
+  path: string;
+  name: string;
+}
+
+/** A SQL file opened into the editor. */
+export interface OpenedFile extends SavedFile {
+  sql: string;
+}
+
 export interface HistoryEntry extends TxTagged {
   id: number;
   connId: string;
@@ -328,6 +352,10 @@ export interface Backend {
   /** Resolves with the summary after the last page was delivered. */
   runQuery(input: RunInput): Promise<Summary>;
   cancelQuery(requestId: string): Promise<void>;
+  /** Splits SQL into statements the way the backend counts them. */
+  statements(dialect: Dialect, sql: string): Promise<StatementRange[]>;
+  /** Syntax errors found offline by the dialect's parser. */
+  checkSyntax(dialect: Dialect, sql: string): Promise<SyntaxIssue[]>;
   /** Subscribes to every query page; returns an unsubscribe function. */
   onPage(fn: (page: Page) => void): () => void;
   queryHistory(connId: string, beforeId: number, limit: number): Promise<HistoryEntry[]>;
@@ -347,6 +375,22 @@ export interface Backend {
   auditVerify(): Promise<VerifyResult>;
   /** Asks the user for a file and exports to it; resolves false if they cancelled. */
   auditExport(format: ExportFormat, filter: AuditFilter): Promise<boolean>;
+
+  /** Syntax colours the user changed: token key → #rrggbb. */
+  editorColors(): Promise<Record<string, string>>;
+  saveEditorColors(colors: Record<string, string>): Promise<Record<string, string>>;
+
+  /**
+   * Asks where to save with the native dialog and writes sql there; resolves
+   * with an empty path when the user cancels.
+   */
+  saveSqlAs(filename: string, sql: string): Promise<SavedFile>;
+  /** Saves again to a file chosen with saveSqlAs or openSql in this session. */
+  saveSql(path: string, sql: string): Promise<SavedFile>;
+  /** Asks for a SQL file with the native dialog; an empty path when cancelled. */
+  openSql(): Promise<OpenedFile>;
+  /** Tells the app the editor's file has unsaved changes, to ask before quitting. */
+  setUnsaved(unsaved: boolean): Promise<void>;
 
   /** Puts text on the system clipboard. */
   copyText(text: string): Promise<void>;

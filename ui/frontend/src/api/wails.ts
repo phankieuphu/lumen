@@ -33,6 +33,8 @@ export const wailsBackend: Backend = {
 
   runQuery: (input) => call("RunQuery", input),
   cancelQuery: (requestId) => call("CancelQuery", requestId),
+  statements: (dialect, sql) => call("Statements", dialect, sql),
+  checkSyntax: (dialect, sql) => call("CheckSyntax", dialect, sql),
   onPage: (fn) => Events.On(EVENT_QUERY_PAGE, (ev) => fn(ev.data as Page)),
   queryHistory: (connId, beforeId, limit) => call("QueryHistory", connId, beforeId, limit),
   beginTx: (connId, label) => call("BeginTx", connId, label),
@@ -53,6 +55,13 @@ export const wailsBackend: Backend = {
     await call("AuditExport", path, format, filter);
     return true;
   },
+
+  saveSqlAs: (filename, sql) => call("SaveSQLAs", filename, sql),
+  saveSql: (path, sql) => call("SaveSQL", path, sql),
+  openSql: () => call("OpenSQL"),
+  setUnsaved: (unsaved) => call("SetUnsaved", unsaved),
+  editorColors: () => call("EditorColors"),
+  saveEditorColors: (colors) => call("SaveEditorColors", colors),
 
   // The native clipboard: the web view may refuse navigator.clipboard.
   copyText: (text) => Clipboard.SetText(text),
