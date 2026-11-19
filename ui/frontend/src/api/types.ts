@@ -121,6 +121,49 @@ export interface LintIssue {
   message: string;
 }
 
+/** Mirrors internal/explain. Row counts and times are per loop. */
+export interface ExplainNode {
+  id: number;
+  op: string;
+  kind: "scan" | "index-scan" | "join" | "sort" | "aggregate" | "limit" | "filter" | "other";
+  relation?: string;
+  index?: string;
+  detail?: string;
+  estRows: number;
+  estCost: number;
+  rows: number;
+  loops: number;
+  timeMs: number;
+  rowsRemoved: number;
+  neverRan?: boolean;
+  spilled?: boolean;
+  children?: ExplainNode[];
+}
+
+export interface PlanFinding {
+  severity: "warning" | "info";
+  title: string;
+  detail: string;
+  nodeId: number;
+}
+
+export interface ExplainPlan {
+  dialect: Dialect;
+  /** The statement ran, in a read-only transaction that was rolled back. */
+  analyzed: boolean;
+  /** The plan has row and cost estimates. */
+  estimated: boolean;
+  note: string;
+  root: ExplainNode | null;
+  planningMs: number;
+  executionMs: number;
+  findings: PlanFinding[];
+  /** How it ran, in the order the work happened. */
+  steps: string[];
+  raw: string;
+  truncated: boolean;
+}
+
 export interface HistoryEntry extends TxTagged {
   id: number;
   connId: string;
@@ -383,6 +426,8 @@ export interface Backend {
   transactionHistory(txId: string): Promise<HistoryEntry[]>;
   /** Tables, columns, and foreign keys of the connection's database, cached until DDL. */
   schema(connId: string): Promise<DbSchema>;
+  /** The plan of one statement: reads run with EXPLAIN ANALYZE (rolled back), others are planned only. */
+  explain(connId: string, sql: string): Promise<ExplainPlan>;
   /** Reads the schema again, e.g. after DDL run outside lumen. */
   refreshSchema(connId: string): Promise<DbSchema>;
   /** Subscribes to schema changes (DDL, end of a transaction); returns an unsubscribe function. */

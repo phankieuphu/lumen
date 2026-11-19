@@ -45,6 +45,7 @@ const paths = {
     </>
   ),
   open: <path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z" />,
+  plan: <path d="M5 4h6v4H5zM9 8v4h4M13 10h6v4h-6zM9 12v6h4M13 16h6v4h-6z" />,
   save: (
     <>
       <path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4z" />

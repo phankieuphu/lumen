@@ -154,6 +154,8 @@ interface Props {
   onSave?: (as: boolean) => void;
   /** Called on Mod-O. */
   onOpen?: () => void;
+  /** Called on Mod-E with the same target as Run. */
+  onExplain?: (target: RunTarget) => void;
   /** Called after the text changes. */
   onChange?: () => void;
   /** Tables and columns to complete, besides keywords. */
@@ -188,7 +190,7 @@ const CHECK_DELAY_MS = 400;
  * SqlEditor wraps a CodeMirror 6 view. The text lives in CodeMirror, not in
  * React state, so typing never re-renders the screen. Mod-Enter runs.
  */
-export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onOpen, onChange, completion, ref }: Props) {
+export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onOpen, onExplain, onChange, completion, ref }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
   const languageConf = useRef(new Compartment());
@@ -200,6 +202,8 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
   saveRef.current = onSave;
   const openRef = useRef(onOpen);
   openRef.current = onOpen;
+  const explainRef = useRef(onExplain);
+  explainRef.current = onExplain;
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
   const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -216,6 +220,11 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
               { key: "Mod-s", run: () => (saveRef.current?.(false), !!saveRef.current), preventDefault: true },
               { key: "Shift-Mod-s", run: () => (saveRef.current?.(true), !!saveRef.current), preventDefault: true },
               { key: "Mod-o", run: () => (openRef.current?.(), !!openRef.current), preventDefault: true },
+              {
+                key: "Mod-e",
+                run: (v) => (explainRef.current?.(currentTarget(v)), !!explainRef.current),
+                preventDefault: true,
+              },
             ]),
           ),
           basicSetup,
