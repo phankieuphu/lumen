@@ -148,6 +148,15 @@ func TestMySQLHashJoinAndEstimates(t *testing.T) {
 	}
 }
 
+func TestMySQLCRLF(t *testing.T) {
+	raw := strings.ReplaceAll(fixture(t, "mysql_join_analyze.txt"), "\n", "\r\n")
+	p, err := parseMySQL(raw)
+	p = analyzed(t, p, err)
+	if p.Root.Op != "Limit" || p.Root.Loops != 1 {
+		t.Fatalf("root = %+v", p.Root)
+	}
+}
+
 func TestMySQLNeverExecuted(t *testing.T) {
 	raw := "-> Nested loop inner join  (cost=0.7 rows=1) (actual time=0.08..0.08 rows=0 loops=1)\n" +
 		"    -> Table scan on o  (cost=0.35 rows=1) (actual time=0.003..0.003 rows=0 loops=1)\n" +

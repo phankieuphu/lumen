@@ -68,6 +68,7 @@ func parseMySQL(raw string) (Plan, error) {
 	p := Plan{}
 	var stack []*Node // stack[d] is the last node seen at depth d
 	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSuffix(line, "\r")
 		trimmed := strings.TrimLeft(line, " ")
 		if !strings.HasPrefix(trimmed, "-> ") {
 			continue
