@@ -10,6 +10,7 @@
     "check": "tsc --noEmit && vitest run && vite build"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "6.20.4",
     "@codemirror/lang-sql": "6.10.0",
     "@codemirror/language": "6.13.1",
     "@codemirror/lint": "6.9.7",

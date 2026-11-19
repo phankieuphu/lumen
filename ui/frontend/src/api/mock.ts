@@ -62,7 +62,7 @@ function mockSchema(conn: Connection | undefined): DbSchema {
     tables.push(t("events", [c("id", "bigint", "pk"), c("customer_id", "bigint", "?"), c("kind", "text"), c("at", "timestamptz")], "audit"));
     foreignKeys.push(fk("events_customer_id_fkey", "events", ["customer_id"], "customers", ["id"], "audit", main));
   }
-  return { dialect: conn?.dialect ?? "postgres", tables, foreignKeys, truncated: false };
+  return { dialect: conn?.dialect ?? "postgres", tables, foreignKeys, truncated: false, version: 1 };
 }
 
 export function createMockBackend(): Backend {
@@ -74,6 +74,8 @@ export function createMockBackend(): Backend {
   const cancelled = new Set<string>();
   let editorColors: Record<string, string> = {};
   const files = new Map<string, string>();
+  let schemaVersion = 1;
+  const schemaListeners = new Set<(connId: string) => void>();
   const txs = new Map<string, Transaction>();
 
   const add = (c: Omit<Connection, "id" | "createdAt" | "updatedAt">) => {
@@ -161,6 +163,10 @@ export function createMockBackend(): Backend {
       }
       if (kind !== "read") {
         await sleep(100);
+        if (kind === "schema") {
+          schemaVersion++;
+          schemaListeners.forEach((fn) => fn(connId));
+        }
         return finish("ok", { rowsAffected: 3 });
       }
       const total = Math.min(Number(/limit\s+(\d+)/i.exec(sql)?.[1] ?? 5000), maxRows + 1);
@@ -264,7 +270,15 @@ export function createMockBackend(): Backend {
 
     async schema(connId) {
       await sleep(150);
-      return mockSchema(conns.find((c) => c.id === connId));
+      return { ...mockSchema(conns.find((c) => c.id === connId)), version: schemaVersion };
+    },
+    async refreshSchema(connId) {
+      schemaVersion++;
+      return this.schema(connId);
+    },
+    onSchemaChanged(fn) {
+      schemaListeners.add(fn);
+      return () => schemaListeners.delete(fn);
     },
 
     auditList: async ({ connId, afterSeq = 0, limit = 200 }) =>

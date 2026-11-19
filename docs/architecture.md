@@ -13,7 +13,7 @@
 | `internal/store` | Local SQLite file, embedded numbered migrations | — |
 | `internal/secret` | OS keychain (and in-memory store for tests) | — |
 | `internal/advisor` | Top slow statements from `pg_stat_statements` / `performance_schema`, filtered and sorted on the server; generic plan on PostgreSQL from an `EXPLAIN` that never runs the statement | `driver`, `sqlscan` |
-| `internal/schema` | Tables, columns, PKs, and foreign keys from catalog queries, bounded by table/column limits | `driver` |
+| `internal/schema` | Tables, columns, PKs, and foreign keys from catalog queries, bounded by table/column limits; a versioned per-connection cache that the query path invalidates after DDL and at the end of a transaction | `driver` |
 | `internal/sqlparse` | Offline syntax check for the editor with each dialect's parser: `pg_query_go` (libpg_query; CGO, not on Windows), the TiDB parser for MySQL, and SQLite's own parser on an empty in-memory database | `driver`, `sqlscan` |
 | `internal/sqlscan` | Dialect-aware lexer and statement splitter | — |
 | `internal/driver` | `Driver`, `Conn`, `Session`, `Rows` interfaces; registry | — |

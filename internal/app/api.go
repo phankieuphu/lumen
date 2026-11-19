@@ -101,6 +101,11 @@ func (p *API) Schema(ctx context.Context, connID string) (schema.Schema, error) 
 	return p.a.Schema(ctx, connID)
 }
 
+// RefreshSchema forwards to App.RefreshSchema.
+func (p *API) RefreshSchema(ctx context.Context, connID string) (schema.Schema, error) {
+	return p.a.RefreshSchema(ctx, connID)
+}
+
 // AdvisorList forwards to App.AdvisorList.
 func (p *API) AdvisorList(ctx context.Context, connID string, f advisor.Filter) (advisor.List, error) {
 	return p.a.AdvisorList(ctx, connID, f)

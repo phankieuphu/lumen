@@ -8,6 +8,7 @@ import { ResultGrid } from "../components/ResultGrid";
 import { type EditorHandle, type RunTarget, SqlEditor } from "../components/SqlEditor";
 import { Banner, Confirm, EnvBadge, EnvDot, KindBadge, StatusBadge, TxTag } from "../components/ui";
 import { useQueryRunner } from "../hooks/useQueryRunner";
+import { useSchemaCompletion } from "../hooks/useSchemaCompletion";
 import { type TxNotice, useTransaction } from "../hooks/useTransaction";
 import { connTarget, dialectName, formatCount, formatDuration } from "../lib/format";
 import { statementAt } from "../lib/statements";
@@ -52,6 +53,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
   };
   const runSql = (t: RunTarget) => void runTarget(t);
   const file = useSqlFile(editorRef);
+  const completion = useSchemaCompletion(conn.id);
   const checkSyntax = useCallback((sql: string) => backend.checkSyntax(conn.dialect, sql), [backend, conn.dialect]);
   const txAction = (fn: () => Promise<void>) => () => void fn().finally(onRan);
   const [copied, setCopied] = useState<{ text: string; failed?: boolean }>();
@@ -125,6 +127,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
         onSave={(as) => void file.save(as)}
         onOpen={file.open}
         onChange={file.markDirty}
+        completion={completion}
       />
       {file.error && <Banner tone="danger">{file.error}</Banner>}
       {txn.error && <Banner tone="danger">{txn.error}</Banner>}

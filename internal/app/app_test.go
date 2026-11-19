@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/phankieuphu/lumen/internal/advisor"
+	"github.com/phankieuphu/lumen/internal/schema"
 	"github.com/phankieuphu/lumen/internal/secret"
 )
 
@@ -199,5 +200,69 @@ func TestEditorColors(t *testing.T) {
 	got, err := a.EditorColors(ctx)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("colors after restart = %v, %v; want %v", got, err, want)
+	}
+}
+
+// schemaEvents counts EventSchemaChanged per connection.
+type schemaEvents struct {
+	mu sync.Mutex
+	n  map[string]int
+}
+
+func (s *schemaEvents) Emit(event string, data any) {
+	if event != EventSchemaChanged {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.n[data.(SchemaChangedDTO).ConnID]++
+}
+
+func (s *schemaEvents) count(id string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.n[id]
+}
+
+func TestSchemaCacheRefreshesAfterDDL(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	a := openTestApp(t)
+	ev := &schemaEvents{n: map[string]int{}}
+	a.SetEmitter(ev)
+	pw := "unused"
+	c, err := a.CreateConnection(ctx, ConnectionInput{
+		Name: "local", Dialect: "sqlite", Database: filepath.Join(dir, "data.db"), Password: &pw,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(id, sql string) {
+		t.Helper()
+		if _, err := a.RunQuery(ctx, RunInput{RequestID: id, ConnID: c.ID, SQL: sql}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tables := func(s schema.Schema) int { return len(s.Tables) }
+
+	s1, err := a.Schema(ctx, c.ID)
+	if err != nil || tables(s1) != 0 {
+		t.Fatalf("empty database schema = %+v, %v", s1, err)
+	}
+	run("r1", "SELECT 1")
+	if s, _ := a.Schema(ctx, c.ID); s.Version != s1.Version || ev.count(c.ID) != 0 {
+		t.Fatalf("a read changed the schema: version %d→%d, %d events", s1.Version, s.Version, ev.count(c.ID))
+	}
+	run("r2", "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)")
+	if ev.count(c.ID) != 1 {
+		t.Fatalf("DDL sent %d schema events, want 1", ev.count(c.ID))
+	}
+	s2, err := a.Schema(ctx, c.ID)
+	if err != nil || tables(s2) != 1 || s2.Version <= s1.Version {
+		t.Fatalf("after CREATE TABLE: %d tables, version %d (was %d), %v", tables(s2), s2.Version, s1.Version, err)
+	}
+	s3, err := a.RefreshSchema(ctx, c.ID)
+	if err != nil || s3.Version <= s2.Version {
+		t.Fatalf("RefreshSchema did not reload: version %d (was %d), %v", s3.Version, s2.Version, err)
 	}
 }

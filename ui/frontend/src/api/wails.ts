@@ -6,6 +6,8 @@ import type { AuditFilter, Backend, ExportFormat, Page } from "./types";
 const APP = "github.com/phankieuphu/lumen/internal/app.API.";
 // app.EventQueryPage.
 const EVENT_QUERY_PAGE = "query:page";
+// app.EventSchemaChanged.
+const EVENT_SCHEMA_CHANGED = "schema:changed";
 
 const call = <T>(method: string, ...args: unknown[]): Promise<T> => Call.ByName(APP + method, ...args) as Promise<T>;
 
@@ -43,6 +45,8 @@ export const wailsBackend: Backend = {
   transactions: () => call("Transactions"),
   transactionHistory: (txId) => call("TransactionHistory", txId),
   schema: (connId) => call("Schema", connId),
+  refreshSchema: (connId) => call("RefreshSchema", connId),
+  onSchemaChanged: (fn) => Events.On(EVENT_SCHEMA_CHANGED, (ev) => fn((ev.data as { connId: string }).connId)),
 
   auditList: (filter) => call("AuditList", filter),
   auditVerify: () => call("AuditVerify"),

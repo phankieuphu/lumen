@@ -198,7 +198,7 @@ export function RelationsScreen({ conn, onOpen }: Props) {
       {s.loading && !s.data && <p className="muted pad">Reading schema…</p>}
       {s.data && (
         <ReactFlowProvider>
-          <Diagram connId={conn.id} schema={s.data} onOpen={onOpen} onRefresh={s.reload} loading={s.loading} />
+          <Diagram connId={conn.id} schema={s.data} onOpen={onOpen} onRefresh={() => void backend.refreshSchema(conn.id).finally(s.reload)} loading={s.loading} />
         </ReactFlowProvider>
       )}
     </section>

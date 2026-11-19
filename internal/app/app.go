@@ -33,6 +33,9 @@ import (
 // Event names emitted to the UI.
 const (
 	EventQueryPage = "query:page"
+	// EventSchemaChanged carries a SchemaChangedDTO after DDL or the end of
+	// a transaction, so the UI can fetch the connection's schema again.
+	EventSchemaChanged = "schema:changed"
 )
 
 // Emitter sends events to the UI. The shell implements it.
@@ -59,6 +62,7 @@ type App struct {
 	history   *query.History
 	runner    *query.Runner
 	syntax    *sqlparse.Checker
+	schemas   *schema.Cache
 	emitter   Emitter
 	picker    FilePicker
 	picked    pickedFiles
@@ -95,6 +99,7 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 		picker:  noPicker{},
 	}
 	a.runner = query.NewRunner(a.conns, a.audit, a.history, cfg.Logger)
+	a.schemas = schema.NewCache(a.loadSchema, 0)
 	if a.syntax, err = sqlparse.New(); err != nil {
 		_ = st.Close()
 		return nil, err
@@ -139,7 +144,18 @@ func (a *App) RunQuery(ctx context.Context, in RunInput) (SummaryDTO, error) {
 		a.emitter.Emit(EventQueryPage, json.RawMessage(b))
 		return nil
 	})
+	if sum.Kind == query.KindSchema || sum.TxEnd != "" {
+		a.schemaChanged(in.ConnID)
+	}
 	return summaryDTO(sum), err
+}
+
+// schemaChanged drops the cached schema of connID and tells the UI. DDL in
+// an open transaction is not visible to the catalog read until it commits,
+// so the end of a transaction counts too.
+func (a *App) schemaChanged(connID string) {
+	a.schemas.Invalidate(connID)
+	a.emitter.Emit(EventSchemaChanged, SchemaChangedDTO{ConnID: connID})
 }
 
 // Statements returns where each statement of sql sits, so the editor can run
@@ -223,13 +239,21 @@ func (a *App) BeginTx(ctx context.Context, connID, label string) (TxDTO, error) 
 
 // CommitTx commits an open transaction.
 func (a *App) CommitTx(ctx context.Context, txID string) (SummaryDTO, error) {
+	connID := a.txConn(txID)
 	sum, err := a.runner.Commit(ctx, txID)
+	if connID != "" {
+		a.schemaChanged(connID)
+	}
 	return summaryDTO(sum), err
 }
 
 // RollbackTx rolls back an open transaction.
 func (a *App) RollbackTx(ctx context.Context, txID string) (SummaryDTO, error) {
+	connID := a.txConn(txID)
 	sum, err := a.runner.Rollback(ctx, txID)
+	if connID != "" {
+		a.schemaChanged(connID)
+	}
 	return summaryDTO(sum), err
 }
 
@@ -275,16 +299,39 @@ func (a *App) QueryHistory(ctx context.Context, connID string, beforeID int64, l
 const schemaTimeout = 30 * time.Second
 
 // Schema returns the tables, columns, and foreign keys of a connection's
-// database, for the relations diagram. It runs fixed catalog reads only,
-// so it is allowed on read-only and production connections.
+// database, for the relations diagram and autocomplete. It is cached until
+// DDL, the end of a transaction, or RefreshSchema; Version tells copies
+// apart. It runs fixed catalog reads only, so it is allowed on read-only and
+// production connections.
 func (a *App) Schema(ctx context.Context, connID string) (schema.Schema, error) {
 	ctx, cancel := context.WithTimeout(ctx, schemaTimeout)
 	defer cancel()
+	return a.schemas.Get(ctx, connID)
+}
+
+// RefreshSchema reads a connection's schema again, e.g. after DDL run
+// outside lumen.
+func (a *App) RefreshSchema(ctx context.Context, connID string) (schema.Schema, error) {
+	a.schemas.Invalidate(connID)
+	return a.Schema(ctx, connID)
+}
+
+func (a *App) loadSchema(ctx context.Context, connID string) (schema.Schema, error) {
 	c, _, err := a.conns.Get(ctx, connID)
 	if err != nil {
 		return schema.Schema{}, err
 	}
 	return schema.Read(ctx, c, schema.Limits{})
+}
+
+// txConn is the connection of an open transaction, or "".
+func (a *App) txConn(txID string) string {
+	for _, t := range a.runner.Transactions() {
+		if t.ID == txID {
+			return t.ConnID
+		}
+	}
+	return ""
 }
 
 // advisorTimeout bounds a statistics or plan read.
@@ -343,6 +390,7 @@ func (a *App) UpdateConnection(ctx context.Context, id string, in ConnectionInpu
 	p := in.profile()
 	p.ID = id
 	saved, err := a.conns.Update(ctx, p, in.Password)
+	a.schemas.Forget(id) // it may point at another database now
 	return connectionDTO(saved), err
 }
 
@@ -351,6 +399,7 @@ func (a *App) DeleteConnection(ctx context.Context, id string) error {
 	if err := a.runner.RollbackConn(ctx, id); err != nil {
 		a.log.Warn("rollback before delete failed", "conn", id, "err", err)
 	}
+	a.schemas.Forget(id)
 	return a.conns.Delete(ctx, id)
 }
 
