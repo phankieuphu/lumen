@@ -27,6 +27,7 @@ const col = (name: string, type = "int", extra: { pk?: boolean; nullable?: boole
 const shop: DbSchema = {
   dialect: "postgres",
   truncated: false,
+  version: 1,
   tables: [
     { schema: "public", name: "customers", kind: "table", columns: [col("id", "int", { pk: true }), col("email", "text")] },
     { schema: "public", name: "orders", kind: "table", columns: [col("id", "int", { pk: true }), col("customer_id")] },
@@ -152,6 +153,7 @@ describe("feature groups", () => {
     const two: DbSchema = {
       dialect: "postgres",
       truncated: false,
+      version: 1,
       tables: ["a", "a1", "a2", "b", "b1", "b2", "lonely"].map(t),
       foreignKeys: [fk("a1", "a"), fk("a2", "a"), fk("a2", "a1"), fk("b1", "b"), fk("b2", "b"), fk("b2", "b1"), fk("b", "a")],
     };
@@ -174,6 +176,7 @@ describe("feature groups", () => {
     const many: DbSchema = {
       dialect: "sqlite",
       truncated: false,
+      version: 1,
       tables: Array.from({ length: GROUP_COLORS + 2 }, (_, i) => ({ schema: `s${i}`, name: "t", kind: "table" as const, columns: [] })),
       foreignKeys: [],
     };

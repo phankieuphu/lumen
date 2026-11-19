@@ -189,6 +189,8 @@ export interface DbSchema {
   foreignKeys: ForeignKey[];
   /** A table or column limit stopped the read early. */
   truncated: boolean;
+  /** Grows with every load of the backend's schema cache. */
+  version: number;
 }
 
 // Slow-query advisor (phase 4). Mirrors internal/advisor. The list and the
@@ -368,8 +370,12 @@ export interface Backend {
   transactions(): Promise<Transaction[]>;
   /** Every statement of one transaction, oldest first. */
   transactionHistory(txId: string): Promise<HistoryEntry[]>;
-  /** Tables, columns, and foreign keys of the connection's database. */
+  /** Tables, columns, and foreign keys of the connection's database, cached until DDL. */
   schema(connId: string): Promise<DbSchema>;
+  /** Reads the schema again, e.g. after DDL run outside lumen. */
+  refreshSchema(connId: string): Promise<DbSchema>;
+  /** Subscribes to schema changes (DDL, end of a transaction); returns an unsubscribe function. */
+  onSchemaChanged(fn: (connId: string) => void): () => void;
 
   auditList(filter: AuditFilter): Promise<AuditEntry[]>;
   auditVerify(): Promise<VerifyResult>;
