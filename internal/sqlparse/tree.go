@@ -279,8 +279,9 @@ func Parse(src string, d driver.Dialect) ([]Stmt, error) {
 	default:
 		return nil, ErrNoAdapter
 	}
-	var out []Stmt
-	for _, st := range sqlscan.Split(src, scan) {
+	stmts := sqlscan.Split(src, scan)
+	out := make([]Stmt, 0, len(stmts))
+	for _, st := range stmts {
 		t, ok := parse(st.Text, st.Start)
 		if !ok {
 			continue
