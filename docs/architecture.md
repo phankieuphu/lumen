@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `cmd/lumen` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
 | `ui/shell` | The only Wails import; opens the window, serves the embedded UI, binds `app.API`, and emits events | `app` |
-| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `advisor`, `store` |
+| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `advisor`, `sqlparse`, `store` |
 | `internal/query` | Run / cancel by request ID, page streaming, classifier | `conn`, `audit`, `store`, `driver` |
 | `internal/conn` | Connection profiles, pool cache, read-only, env tags | `driver`, `store`, `secret` |
 | `internal/audit` | Append-only, hash-chained log; verify; CSV/JSON export | `store` |
@@ -14,11 +14,12 @@
 | `internal/secret` | OS keychain (and in-memory store for tests) | — |
 | `internal/advisor` | Top slow statements from `pg_stat_statements` / `performance_schema`, filtered and sorted on the server; generic plan on PostgreSQL from an `EXPLAIN` that never runs the statement | `driver`, `sqlscan` |
 | `internal/schema` | Tables, columns, PKs, and foreign keys from catalog queries, bounded by table/column limits | `driver` |
+| `internal/sqlparse` | Offline syntax check for the editor with each dialect's parser: `pg_query_go` (libpg_query; CGO, not on Windows), the TiDB parser for MySQL, and SQLite's own parser on an empty in-memory database | `driver`, `sqlscan` |
 | `internal/sqlscan` | Dialect-aware lexer and statement splitter | — |
 | `internal/driver` | `Driver`, `Conn`, `Session`, `Rows` interfaces; registry | — |
 | `internal/driver/{postgres,mysql,sqlite}` | Engine implementations | `driver` |
 
-Later phases add `sqlparse`, `lint`, `explain`, `debug`, `locks`, `ai`, and
+Later phases add `lint`, `explain`, `debug`, `locks`, `ai`, and
 `monitor`, each depending only on `driver` and `store`. `advisor` gains its
 advice and verification steps once `ai` and `explain` exist.
 
