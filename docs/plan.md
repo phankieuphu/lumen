@@ -78,7 +78,7 @@ Tick tasks off as they are done; each list ends with its phase gate.
 - [x] `audit`: append-only writes from the query path, hash chain, CSV/JSON export
 - [x] UI: connection list and form, editor (CodeMirror 6), virtualized result grid, query history
 - [x] UI: audit log screen
-- [ ] Gate: query and cancel on all three databases; writes appear in the audit log
+- [x] Gate: query and cancel on all three databases; writes appear in the audit log
 
 ### Phase 2 · Rule help + Explain + Debug
 
