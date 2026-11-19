@@ -55,8 +55,25 @@ func TestSplit(t *testing.T) {
 				if got[i].Text != tt.want[i] {
 					t.Errorf("stmt %d = %q, want %q", i, got[i].Text, tt.want[i])
 				}
+				if span := tt.src[got[i].Start:got[i].End]; span != got[i].Text {
+					t.Errorf("stmt %d spans %q, want %q", i, span, got[i].Text)
+				}
 			}
 		})
+	}
+}
+
+func TestSplitOffsets(t *testing.T) {
+	src := "  SELECT 'é';\n\n  -- next\n  DELETE FROM t ;  "
+	got := Split(src, Postgres)
+	want := []struct{ start, end int }{{2, 13}, {28, 41}}
+	if len(got) != len(want) {
+		t.Fatalf("got %d statements %q, want %d", len(got), texts(got), len(want))
+	}
+	for i, w := range want {
+		if got[i].Start != w.start || got[i].End != w.end {
+			t.Errorf("stmt %d at [%d,%d), want [%d,%d)", i, got[i].Start, got[i].End, w.start, w.end)
+		}
 	}
 }
 
