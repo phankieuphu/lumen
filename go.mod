@@ -1,12 +1,12 @@
 module github.com/phankieuphu/lumen
 
-go 1.27.3
+go 1.26.11
 
 require (
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pganalyze/pg_query_go/v6 v6.2.5
-	github.com/pingcap/tidb/pkg/parser v0.0.0-20261119071618-3305e7995d36
+	github.com/pingcap/tidb/pkg/parser v0.0.0-20261026135520-da76b94491e9
 	github.com/wailsapp/wails/v3 v3.1.0
 	github.com/zalando/go-keyring v0.2.8
 	modernc.org/sqlite v1.61.0

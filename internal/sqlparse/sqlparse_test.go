@@ -50,6 +50,9 @@ func TestCheck(t *testing.T) {
 	c := newChecker(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.dialect == driver.Postgres && !postgresChecked && tt.want != nil {
+				t.Skip("PostgreSQL syntax is not checked without CGO or on Windows")
+			}
 			got := c.Check(t.Context(), tt.src, tt.dialect)
 			if len(got) != len(tt.want) {
 				t.Fatalf("got %d issues %+v, want %d", len(got), got, len(tt.want))
@@ -117,7 +120,8 @@ func TestCheckLimits(t *testing.T) {
 	if got := c.Check(t.Context(), strings.Repeat("x", MaxBytes+1), driver.Postgres); got != nil {
 		t.Errorf("SQL over MaxBytes was checked: %d issues", len(got))
 	}
-	if got := c.Check(t.Context(), strings.Repeat("SELEC 1;", MaxIssues+10), driver.Postgres); len(got) != MaxIssues {
+	// MySQL is checked in every build.
+	if got := c.Check(t.Context(), strings.Repeat("SELEC 1;", MaxIssues+10), driver.MySQL); len(got) != MaxIssues {
 		t.Errorf("got %d issues, want MaxIssues = %d", len(got), MaxIssues)
 	}
 }
