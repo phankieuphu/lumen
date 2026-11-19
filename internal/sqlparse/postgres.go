@@ -8,6 +8,9 @@ import (
 	"github.com/pganalyze/pg_query_go/v6/parser"
 )
 
+// postgresChecked reports whether PostgreSQL syntax is checked in this build.
+const postgresChecked = true
+
 // checkPostgres parses stmt with libpg_query, PostgreSQL's own parser.
 func checkPostgres(stmt string) *failure {
 	_, err := parser.ParseToProtobuf(stmt)
