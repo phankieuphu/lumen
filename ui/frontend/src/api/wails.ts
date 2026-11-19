@@ -47,6 +47,7 @@ export const wailsBackend: Backend = {
   transactionHistory: (txId) => call("TransactionHistory", txId),
   schema: (connId) => call("Schema", connId),
   refreshSchema: (connId) => call("RefreshSchema", connId),
+  explain: (connId, sql) => call("Explain", connId, sql),
   onSchemaChanged: (fn) => Events.On(EVENT_SCHEMA_CHANGED, (ev) => fn((ev.data as { connId: string }).connId)),
 
   auditList: (filter) => call("AuditList", filter),

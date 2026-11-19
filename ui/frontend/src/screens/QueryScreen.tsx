@@ -3,6 +3,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState, useSyncExtern
 import { type Connection, errorMessage, type SavedFile, type Transaction, useBackend } from "../api";
 import { Elapsed } from "../components/Elapsed";
 import { Icon } from "../components/icons";
+import { type ExplainState, ExplainView } from "../components/ExplainView";
 import { ResultDetails } from "../components/ResultDetails";
 import { ResultGrid } from "../components/ResultGrid";
 import { type EditorHandle, type EditorIssue, type RunTarget, SqlEditor } from "../components/SqlEditor";
@@ -18,6 +19,7 @@ const RUN_KEYS = MAC ? "⌘ Enter" : "Ctrl+Enter";
 const SAVE_KEYS = MAC ? "⌘S" : "Ctrl+S";
 const SAVE_AS_KEYS = MAC ? "⇧⌘S" : "Ctrl+Shift+S";
 const OPEN_KEYS = MAC ? "⌘O" : "Ctrl+O";
+const EXPLAIN_KEYS = MAC ? "⌘E" : "Ctrl+E";
 
 interface Props {
   conn: Connection;
@@ -40,18 +42,37 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
     },
     tx?.id,
   );
-  // Runs the selection, or the statement at the cursor when the editor holds
-  // several. If splitting fails, the whole text goes and the backend says why.
-  const runTarget = async (t: RunTarget) => {
-    txn.dismiss();
-    if (t.selection !== undefined) return run(t.selection);
+  // The selection, or the statement at the cursor when the editor holds
+  // several, which flashes. If splitting fails, the whole text goes and the
+  // backend says why.
+  const pick = async (t: RunTarget): Promise<string> => {
+    if (t.selection !== undefined) return t.selection;
     const ranges = await backend.statements(conn.dialect, t.text).catch(() => []);
     const at = ranges.length > 1 ? statementAt(ranges, t.cursor) : undefined;
-    if (!at) return run(t.text);
+    if (!at) return t.text;
     editorRef.current?.flash(at.from, at.to);
-    return run(t.text.slice(at.from, at.to));
+    return t.text.slice(at.from, at.to);
   };
-  const runSql = (t: RunTarget) => void runTarget(t);
+  const [tab, setTab] = useState<"results" | "explain">("results");
+  const runSql = (t: RunTarget) => {
+    txn.dismiss();
+    setTab("results");
+    void pick(t).then(run);
+  };
+  const [explained, setExplained] = useState<ExplainState>({ phase: "idle" });
+  // Only the latest Explain may show its plan.
+  const explainSeq = useRef(0);
+  const explainSql = (t: RunTarget) => {
+    const seq = ++explainSeq.current;
+    setTab("explain");
+    setExplained({ phase: "running" });
+    void pick(t)
+      .then((sql) => backend.explain(conn.id, sql))
+      .then(
+        (plan) => seq === explainSeq.current && setExplained({ phase: "done", plan }),
+        (err: unknown) => seq === explainSeq.current && setExplained({ phase: "error", error: errorMessage(err) }),
+      );
+  };
   const file = useSqlFile(editorRef);
   const completion = useSchemaCompletion(conn.id);
   // Syntax errors, then lint findings: a statement with a syntax error gets no
@@ -122,6 +143,14 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           onCommit={txAction(txn.commit)}
           onRollback={txAction(txn.rollback)}
         />
+        <button
+          type="button"
+          onClick={() => editorRef.current && explainSql(editorRef.current.target())}
+          disabled={explained.phase === "running"}
+          title={`Explain how the database runs the statement (${EXPLAIN_KEYS})`}
+        >
+          <Icon name="plan" size={14} /> Explain
+        </button>
         <button type="button" onClick={file.open} title={`Open a SQL file (${OPEN_KEYS})`}>
           <Icon name="open" size={14} /> Open
         </button>
@@ -140,6 +169,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
         check={checkSql}
         onSave={(as) => void file.save(as)}
         onOpen={file.open}
+        onExplain={explainSql}
         onChange={file.markDirty}
         completion={completion}
       />
@@ -149,8 +179,20 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
       {summary?.error && hasColumns && <Banner tone="danger">{summary.error}</Banner>}
       {summary?.truncated && <Banner tone="warn">Stopped at the row limit. Refine the query to see the rest.</Banner>}
       <div className="result-head" aria-live="polite">
-        <span className="result-tab">Results</span>
-        {summary && (
+        <div className="result-tabs" role="tablist" aria-label="Result">
+          <button type="button" role="tab" aria-selected={tab === "results"} className="result-tab" onClick={() => setTab("results")}>
+            Results
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "explain"} className="result-tab" onClick={() => setTab("explain")}>
+            Explain
+            {explained.plan && explained.plan.findings.length > 0 && (
+              <span className="tab-count" title="Findings">
+                {explained.plan.findings.length}
+              </span>
+            )}
+          </button>
+        </div>
+        {tab === "results" && summary && (
           <>
             <StatusBadge status={summary.status} />
             <KindBadge kind={summary.kind} />
@@ -158,14 +200,14 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           </>
         )}
         <span className="spacer" />
-        {loading && (
+        {tab === "results" && loading && (
           <span className="result-loading-note muted" role="status">
             <span className="spinner" aria-hidden="true" />
             {running ? "Running…" : "Loading rows…"}
             {loaded > 0 && ` ${formatCount(loaded)} rows`}
           </span>
         )}
-        {copied ? (
+        {tab === "explain" ? null : copied ? (
           <span className={copied.failed ? "copy-note danger-text" : "copy-note ok-text"} role="status">
             <Icon name={copied.failed ? "alert" : "check"} size={13} strokeWidth={2} /> {copied.text}
           </span>
@@ -173,7 +215,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           summary?.kind === "read" &&
           summary.rowCount > 0 && <span className="muted small-text">Click a header to sort, a cell to copy it, or # for the whole row</span>
         )}
-        {summary && !loading && (
+        {tab === "results" && summary && !loading && (
           <span className="mono muted">
             {summary.kind === "read"
               ? `${formatCount(summary.rowCount)} rows`
@@ -183,7 +225,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           </span>
         )}
       </div>
-      <div className={loading ? "result loading" : "result"} aria-busy={loading}>
+      <div className={loading ? "result loading" : "result"} aria-busy={loading} hidden={tab !== "results"}>
         {loading && <div className="result-progress" aria-hidden="true" />}
         {loading && !hasColumns ? (
           <div className="result-wait">
@@ -203,6 +245,11 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           <ResultGrid store={store} onCopy={copy} />
         )}
       </div>
+      {tab === "explain" && (
+        <div className="result">
+          <ExplainView state={explained} keys={EXPLAIN_KEYS} />
+        </div>
+      )}
       <footer className="statusbar">
         <span className="statusbar-item">
           <EnvDot env={conn.env} />
@@ -212,7 +259,9 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
         <span className="statusbar-item">{conn.readOnly ? "Read-only" : "Read and write"}</span>
         {tx && <span className="statusbar-item tx-status">In a transaction: nothing is kept until you commit</span>}
         <span className="spacer" />
-        <span className="statusbar-item">{RUN_KEYS} runs the selection, or the statement at the cursor</span>
+        <span className="statusbar-item">
+          {RUN_KEYS} runs the selection, or the statement at the cursor · {EXPLAIN_KEYS} explains it
+        </span>
       </footer>
       {file.confirmingOpen && (
         <Confirm title="Discard unsaved changes?" confirmLabel="Discard and open" danger onConfirm={file.openAnyway} onCancel={file.cancelOpen}>
