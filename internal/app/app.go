@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/phankieuphu/lumen/internal/advisor"
@@ -20,6 +21,7 @@ import (
 	"github.com/phankieuphu/lumen/internal/query"
 	"github.com/phankieuphu/lumen/internal/schema"
 	"github.com/phankieuphu/lumen/internal/secret"
+	"github.com/phankieuphu/lumen/internal/sqlparse"
 	"github.com/phankieuphu/lumen/internal/store"
 
 	// Engines register themselves.
@@ -56,7 +58,11 @@ type App struct {
 	audit     *audit.Log
 	history   *query.History
 	runner    *query.Runner
+	syntax    *sqlparse.Checker
 	emitter   Emitter
+	picker    FilePicker
+	picked    pickedFiles
+	unsaved   unsavedFlag
 	sessionID int64
 }
 
@@ -86,9 +92,15 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 		audit:   audit.New(st),
 		history: query.NewHistory(st),
 		emitter: nopEmitter{},
+		picker:  noPicker{},
 	}
 	a.runner = query.NewRunner(a.conns, a.audit, a.history, cfg.Logger)
+	if a.syntax, err = sqlparse.New(); err != nil {
+		_ = st.Close()
+		return nil, err
+	}
 	if a.sessionID, err = st.StartAppSession(ctx, cfg.Version); err != nil {
+		_ = a.syntax.Close()
 		_ = st.Close()
 		return nil, err
 	}
@@ -106,6 +118,7 @@ func (a *App) Close(ctx context.Context) error {
 		a.runner.Close(ctx), // open transactions roll back before their pools close
 		a.conns.CloseAll(),
 		a.store.EndAppSession(ctx, a.sessionID),
+		a.syntax.Close(),
 	)
 	return errors.Join(err, a.store.Close())
 }
@@ -127,6 +140,72 @@ func (a *App) RunQuery(ctx context.Context, in RunInput) (SummaryDTO, error) {
 		return nil
 	})
 	return summaryDTO(sum), err
+}
+
+// Statements returns where each statement of sql sits, so the editor can run
+// the one under the cursor. Offsets are UTF-16 code units, as JavaScript
+// strings index them.
+func (a *App) Statements(dialect, sql string) []StatementDTO {
+	return statementDTOs(sql, query.Spans(sql, driver.Dialect(dialect)))
+}
+
+// CheckSyntax returns the syntax errors in sql, parsed offline with the
+// dialect's parser, for the editor to underline. Offsets are UTF-16 code
+// units, as JavaScript strings index them.
+func (a *App) CheckSyntax(ctx context.Context, dialect, sql string) []SyntaxIssueDTO {
+	return syntaxIssueDTOs(sql, a.syntax.Check(ctx, sql, driver.Dialect(dialect)))
+}
+
+// editorColorsKey is the settings key holding the editor's syntax colours.
+const editorColorsKey = "editor.colors"
+
+var (
+	colorToken = regexp.MustCompile(`^[a-z][a-zA-Z]{0,31}$`)
+	colorValue = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+)
+
+// maxEditorColors bounds the stored map; the UI has about ten tokens.
+const maxEditorColors = 32
+
+// EditorColors returns the syntax colours the user changed, token → #rrggbb.
+// The UI holds the defaults, so an empty map means none changed.
+func (a *App) EditorColors(ctx context.Context) (map[string]string, error) {
+	v, err := a.store.Setting(ctx, editorColorsKey)
+	if errors.Is(err, store.ErrNotFound) {
+		return map[string]string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	colors := map[string]string{}
+	if err := json.Unmarshal([]byte(v), &colors); err != nil {
+		return nil, fmt.Errorf("app: read editor colors: %w", err)
+	}
+	return colors, nil
+}
+
+// SaveEditorColors replaces the changed syntax colours. Colours become CSS,
+// so only #rrggbb values for simple token names are accepted.
+func (a *App) SaveEditorColors(ctx context.Context, colors map[string]string) (map[string]string, error) {
+	if len(colors) > maxEditorColors {
+		return nil, fmt.Errorf("app: editor colors: at most %d", maxEditorColors)
+	}
+	for k, v := range colors {
+		if !colorToken.MatchString(k) || !colorValue.MatchString(v) {
+			return nil, fmt.Errorf("app: editor colors: %q: want a token name and a #rrggbb colour", k)
+		}
+	}
+	if colors == nil {
+		colors = map[string]string{}
+	}
+	b, err := json.Marshal(colors)
+	if err != nil {
+		return nil, fmt.Errorf("app: save editor colors: %w", err)
+	}
+	if err := a.store.SetSetting(ctx, editorColorsKey, string(b)); err != nil {
+		return nil, err
+	}
+	return colors, nil
 }
 
 // CancelQuery cancels a running request.
