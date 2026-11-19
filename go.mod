@@ -9,6 +9,7 @@ require (
 	github.com/pingcap/tidb/pkg/parser v0.0.0-20261026135520-da76b94491e9
 	github.com/wailsapp/wails/v3 v3.1.0
 	github.com/zalando/go-keyring v0.2.8
+	google.golang.org/protobuf v1.33.0
 	modernc.org/sqlite v1.61.0
 )
 

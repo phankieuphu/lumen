@@ -5,7 +5,7 @@ import { Elapsed } from "../components/Elapsed";
 import { Icon } from "../components/icons";
 import { ResultDetails } from "../components/ResultDetails";
 import { ResultGrid } from "../components/ResultGrid";
-import { type EditorHandle, type RunTarget, SqlEditor } from "../components/SqlEditor";
+import { type EditorHandle, type EditorIssue, type RunTarget, SqlEditor } from "../components/SqlEditor";
 import { Banner, Confirm, EnvBadge, EnvDot, KindBadge, StatusBadge, TxTag } from "../components/ui";
 import { useQueryRunner } from "../hooks/useQueryRunner";
 import { useSchemaCompletion } from "../hooks/useSchemaCompletion";
@@ -54,7 +54,21 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
   const runSql = (t: RunTarget) => void runTarget(t);
   const file = useSqlFile(editorRef);
   const completion = useSchemaCompletion(conn.id);
-  const checkSyntax = useCallback((sql: string) => backend.checkSyntax(conn.dialect, sql), [backend, conn.dialect]);
+  // Syntax errors, then lint findings: a statement with a syntax error gets no
+  // lint findings, since it does not parse.
+  const checkSql = useCallback(
+    async (sql: string): Promise<EditorIssue[]> => {
+      const [syntax, rules] = await Promise.all([
+        backend.checkSyntax(conn.dialect, sql),
+        backend.lint(conn.id, sql).catch(() => []),
+      ]);
+      return [
+        ...syntax.map((i) => ({ ...i, severity: "error" as const })),
+        ...rules.map((r) => ({ from: r.from, to: r.to, severity: r.severity, message: `${r.rule}: ${r.message}` })),
+      ];
+    },
+    [backend, conn.dialect, conn.id],
+  );
   const txAction = (fn: () => Promise<void>) => () => void fn().finally(onRan);
   const [copied, setCopied] = useState<{ text: string; failed?: boolean }>();
 
@@ -123,7 +137,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
         ref={editorRef}
         dialect={conn.dialect}
         onRun={runSql}
-        check={checkSyntax}
+        check={checkSql}
         onSave={(as) => void file.save(as)}
         onOpen={file.open}
         onChange={file.markDirty}

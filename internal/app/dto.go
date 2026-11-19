@@ -8,6 +8,7 @@ import (
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/conn"
 	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/lint"
 	"github.com/phankieuphu/lumen/internal/query"
 	"github.com/phankieuphu/lumen/internal/sqlparse"
 )
@@ -252,10 +253,14 @@ func syntaxIssueDTOs(sql string, issues []sqlparse.Issue) []SyntaxIssueDTO {
 }
 
 // utf16Offsets returns a converter from byte offsets of s to UTF-16 offsets.
-// It walks s once, so offsets must be passed in non-decreasing order.
+// Offsets in non-decreasing order walk s once; one that goes back starts
+// over.
 func utf16Offsets(s string) func(b int) int {
 	pos, units := 0, 0 // a byte offset in s and its UTF-16 offset
 	return func(b int) int {
+		if b < pos {
+			pos, units = 0, 0
+		}
 		for _, r := range s[pos:b] {
 			units += utf16.RuneLen(r)
 		}
@@ -267,6 +272,26 @@ func utf16Offsets(s string) func(b int) int {
 // SchemaChangedDTO is the payload of EventSchemaChanged.
 type SchemaChangedDTO struct {
 	ConnID string `json:"connId"`
+}
+
+// LintIssueDTO is a lint finding in the editor text, in UTF-16 code units:
+// [From, To).
+type LintIssueDTO struct {
+	From     int    `json:"from"`
+	To       int    `json:"to"`
+	Rule     string `json:"rule"`
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+}
+
+// lintIssueDTOs converts findings of sql to UTF-16 offsets.
+func lintIssueDTOs(sql string, fs []lint.Finding) []LintIssueDTO {
+	out := make([]LintIssueDTO, len(fs))
+	at := utf16Offsets(sql)
+	for i, f := range fs {
+		out[i] = LintIssueDTO{From: at(f.Start), To: at(f.End), Rule: f.Rule, Severity: string(f.Severity), Message: f.Message}
+	}
+	return out
 }
 
 // SavedFileDTO is a file the editor's SQL was saved to.

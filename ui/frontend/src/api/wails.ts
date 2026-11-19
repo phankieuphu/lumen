@@ -37,6 +37,7 @@ export const wailsBackend: Backend = {
   cancelQuery: (requestId) => call("CancelQuery", requestId),
   statements: (dialect, sql) => call("Statements", dialect, sql),
   checkSyntax: (dialect, sql) => call("CheckSyntax", dialect, sql),
+  lint: (connId, sql) => call("Lint", connId, sql),
   onPage: (fn) => Events.On(EVENT_QUERY_PAGE, (ev) => fn(ev.data as Page)),
   queryHistory: (connId, beforeId, limit) => call("QueryHistory", connId, beforeId, limit),
   beginTx: (connId, label) => call("BeginTx", connId, label),
