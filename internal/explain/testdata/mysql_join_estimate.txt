@@ -1,0 +1,7 @@
+-> Limit: 20 row(s)  (cost=0.7 rows=1)
+    -> Nested loop inner join  (cost=0.7 rows=1)
+        -> Sort: o.total DESC  (cost=0.35 rows=1)
+            -> Filter: ((o.`status` = 'open') and (o.customer_id is not null))  (cost=0.35 rows=1)
+                -> Table scan on o  (cost=0.35 rows=1)
+        -> Single-row index lookup on c using PRIMARY (id=o.customer_id)  (cost=0.35 rows=1)
+

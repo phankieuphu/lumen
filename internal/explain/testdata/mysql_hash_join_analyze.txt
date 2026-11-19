@@ -1,0 +1,7 @@
+-> Table scan on <temporary>  (actual time=16.2..16.2 rows=2 loops=1)
+    -> Aggregate using temporary table  (actual time=16.2..16.2 rows=2 loops=1)
+        -> Inner hash join (c.`name` = concat('c',o.customer_id))  (cost=10.1e+6 rows=101e+6) (actual time=0.36..9.29 rows=50000 loops=1)
+            -> Table scan on o  (cost=2.57 rows=50337) (actual time=0.0877..3.22 rows=50000 loops=1)
+            -> Hash
+                -> Table scan on c  (cost=202 rows=2000) (actual time=0.0135..0.118 rows=2000 loops=1)
+

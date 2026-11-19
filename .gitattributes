@@ -1,0 +1,2 @@
+# Plans captured from real servers: keep them byte for byte on every OS.
+internal/explain/testdata/** -text

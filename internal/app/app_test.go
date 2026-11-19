@@ -11,6 +11,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/phankieuphu/lumen/internal/explain"
+	"github.com/phankieuphu/lumen/internal/query"
+
 	"github.com/phankieuphu/lumen/internal/advisor"
 	"github.com/phankieuphu/lumen/internal/lint"
 	"github.com/phankieuphu/lumen/internal/schema"
@@ -266,6 +269,46 @@ func TestSchemaCacheRefreshesAfterDDL(t *testing.T) {
 	s3, err := a.RefreshSchema(ctx, c.ID)
 	if err != nil || s3.Version <= s2.Version {
 		t.Fatalf("RefreshSchema did not reload: version %d (was %d), %v", s3.Version, s2.Version, err)
+	}
+}
+
+func TestExplainOnSQLite(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	a := openTestApp(t)
+	pw := "unused"
+	c, err := a.CreateConnection(ctx, ConnectionInput{Name: "local", Dialect: "sqlite", Database: filepath.Join(dir, "data.db"), Password: &pw})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, q := range []string{"CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)", "INSERT INTO t VALUES (1, 'a')"} {
+		if _, err := a.RunQuery(ctx, RunInput{RequestID: fmt.Sprint("r", i), ConnID: c.ID, SQL: q}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p, err := a.Explain(ctx, c.ID, "SELECT name FROM t WHERE name = 'a'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// SQLite has no EXPLAIN ANALYZE: the read is planned, not run.
+	if p.Root == nil || p.Analyzed || p.Root.Relation != "t" || len(p.Steps) == 0 || !strings.Contains(p.Note, "cannot analyze") {
+		t.Fatalf("plan = %+v", p)
+	}
+
+	p, err = a.Explain(ctx, c.ID, "DELETE FROM t")
+	if err != nil || p.Analyzed {
+		t.Fatalf("delete plan = %+v, %v", p, err)
+	}
+	if s, _ := a.RunQuery(ctx, RunInput{RequestID: "count", ConnID: c.ID, SQL: "SELECT * FROM t"}); s.RowCount != 1 {
+		t.Fatalf("explaining DELETE removed rows: %d left", s.RowCount)
+	}
+
+	if _, err := a.Explain(ctx, c.ID, "SELECT 1; SELECT 2"); !errors.Is(err, query.ErrMultiple) {
+		t.Fatalf("two statements: err = %v, want ErrMultiple", err)
+	}
+	if _, err := a.Explain(ctx, c.ID, "DROP TABLE t"); !errors.Is(err, explain.ErrStatement) {
+		t.Fatalf("DROP: err = %v, want ErrStatement", err)
 	}
 }
 
