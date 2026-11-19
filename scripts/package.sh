@@ -41,30 +41,9 @@ macos-universal)
 	export CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=11.0
 	CC="clang -arch arm64" GOOS=darwin GOARCH=arm64 build -ldflags "$ldflags" -o "$work/lumen-arm64"
 	CC="clang -arch x86_64" GOOS=darwin GOARCH=amd64 build -ldflags "$ldflags" -o "$work/lumen-amd64"
+	lipo -create -output "$work/lumen" "$work/lumen-arm64" "$work/lumen-amd64"
 	app="$work/lumen.app"
-	mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-	cp assets/icon/lumen.icns "$app/Contents/Resources/lumen.icns"
-	lipo -create -output "$app/Contents/MacOS/lumen" "$work/lumen-arm64" "$work/lumen-amd64"
-	cat >"$app/Contents/Info.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>CFBundleName</key><string>lumen</string>
-	<key>CFBundleDisplayName</key><string>lumen</string>
-	<key>CFBundleIdentifier</key><string>io.github.phankieuphu.lumen</string>
-	<key>CFBundleExecutable</key><string>lumen</string>
-	<key>CFBundleIconFile</key><string>lumen</string>
-	<key>CFBundlePackageType</key><string>APPL</string>
-	<key>CFBundleShortVersionString</key><string>${version#v}</string>
-	<key>CFBundleVersion</key><string>${version#v}</string>
-	<key>LSMinimumSystemVersion</key><string>11.0</string>
-	<key>NSHighResolutionCapable</key><true/>
-</dict>
-</plist>
-EOF
-	# Ad-hoc signature: required to launch on Apple silicon at all.
-	codesign --force --deep --sign - "$app"
+	scripts/macos-bundle.sh "$work/lumen" "$app" "$version"
 	ditto -c -k --keepParent "$app" "$out/$name.zip"
 	;;
 

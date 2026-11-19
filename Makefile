@@ -13,11 +13,20 @@ help: ## Show targets
 build: ## Build the binary without the UI (fast; for Go work)
 	go build -trimpath -o bin/lumen ./cmd/lumen
 
-app: ui-build ## Build the desktop app with the UI embedded
+app: ui-build ## Build the desktop app with the UI embedded (and bin/lumen.app on macOS)
 	go build -tags production -trimpath -o bin/lumen ./cmd/lumen
+ifeq ($(shell uname -s),Darwin)
+	scripts/macos-bundle.sh bin/lumen bin/lumen.app
+endif
 
+# On macOS, run from the bundle so fullscreen and app switching behave.
+ifeq ($(shell uname -s),Darwin)
+run: app ## Build and run the desktop app
+	./bin/lumen.app/Contents/MacOS/lumen
+else
 run: app ## Build and run the desktop app
 	./bin/lumen
+endif
 
 VERSION ?= dev
 package: ui-build ## Package for TARGET=linux-amd64|macos-universal|windows-amd64 into dist-release/
