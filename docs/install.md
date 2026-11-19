@@ -105,7 +105,10 @@ cd lumen && make app
 ./bin/lumen
 ```
 
-`make app` builds the UI and embeds it in `bin/lumen`. To try the UI in a
+`make app` builds the UI and embeds it in `bin/lumen`. On macOS it also
+wraps it in `bin/lumen.app`; open that (or use `make run`) rather than the
+bare binary, which macOS doesn't treat as a full app: in fullscreen it can
+stay on top of other apps. To try the UI in a
 browser without Go, run `make ui-dev`: it uses made-up sample data and never
 connects to a database.
 
