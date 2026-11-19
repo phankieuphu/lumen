@@ -112,6 +112,15 @@ export interface OpenedFile extends SavedFile {
   sql: string;
 }
 
+/** A lint finding in the editor text: [from, to), in string indexes. */
+export interface LintIssue {
+  from: number;
+  to: number;
+  rule: string;
+  severity: "error" | "warning" | "info";
+  message: string;
+}
+
 export interface HistoryEntry extends TxTagged {
   id: number;
   connId: string;
@@ -358,6 +367,8 @@ export interface Backend {
   statements(dialect: Dialect, sql: string): Promise<StatementRange[]>;
   /** Syntax errors found offline by the dialect's parser. */
   checkSyntax(dialect: Dialect, sql: string): Promise<SyntaxIssue[]>;
+  /** Lint findings (docs/lint-rules.md) for SQL on a connection; does not connect. */
+  lint(connId: string, sql: string): Promise<LintIssue[]>;
   /** Subscribes to every query page; returns an unsubscribe function. */
   onPage(fn: (page: Page) => void): () => void;
   queryHistory(connId: string, beforeId: number, limit: number): Promise<HistoryEntry[]>;

@@ -84,8 +84,8 @@ Tick tasks off as they are done; each list ends with its phase gate.
 
 - [x] Schema cache with version number and refresh after DDL
 - [x] Autocomplete from schema and dialect keywords, under 50 ms
-- [ ] Parser adapters for PostgreSQL and MySQL
-- [ ] Lint rules from the design document, with tests per rule
+- [x] Parser adapters for PostgreSQL and MySQL
+- [ ] Lint rules from the design document, with tests per rule (a proposed set is in [lint-rules.md](lint-rules.md); check it against the design document)
 - [ ] `explain`: run `EXPLAIN ANALYZE` safely, normalize the plan tree, findings, "how it ran" text
 - [ ] Explain tab with plan table, steps, and findings
 - [ ] Locks tab: locks this session took
