@@ -18,6 +18,7 @@ import (
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/conn"
 	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/explain"
 	"github.com/phankieuphu/lumen/internal/query"
 	"github.com/phankieuphu/lumen/internal/schema"
 	"github.com/phankieuphu/lumen/internal/secret"
@@ -332,6 +333,25 @@ func (a *App) txConn(txID string) string {
 		}
 	}
 	return ""
+}
+
+// Explain takes the plan of sql, one statement, on a connection. Reads run
+// with EXPLAIN ANALYZE inside a read-only transaction that is rolled back;
+// writes and anything else are planned but not run. The time limit is
+// explain.DefaultTimeout.
+func (a *App) Explain(ctx context.Context, connID, sql string) (explain.Plan, error) {
+	c, p, err := a.conns.Get(ctx, connID)
+	if err != nil {
+		return explain.Plan{}, err
+	}
+	cls := query.Classify(sql, p.Dialect)
+	switch {
+	case cls.Statements == 0:
+		return explain.Plan{}, query.ErrEmpty
+	case cls.Statements > 1:
+		return explain.Plan{}, fmt.Errorf("%w: select the statement to explain, or put the cursor in it", query.ErrMultiple)
+	}
+	return explain.Run(ctx, c, sql, explain.Options{Analyze: cls.IsRead()})
 }
 
 // advisorTimeout bounds a statistics or plan read.
