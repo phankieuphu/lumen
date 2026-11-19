@@ -55,6 +55,9 @@ type Schema struct {
 	ForeignKeys []ForeignKey   `json:"foreignKeys"`
 	// Truncated is set when a limit stopped the read early.
 	Truncated bool `json:"truncated"`
+	// Version is set by Cache: it grows with every load, so a client can
+	// tell whether its copy is current.
+	Version uint64 `json:"version"`
 }
 
 // Limits bounds a read. Zero values select the defaults.

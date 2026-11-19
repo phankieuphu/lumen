@@ -82,8 +82,8 @@ Tick tasks off as they are done; each list ends with its phase gate.
 
 ### Phase 2 · Rule help + Explain + Debug
 
-- [ ] Schema cache with version number and refresh after DDL
-- [ ] Autocomplete from schema and dialect keywords, under 50 ms
+- [x] Schema cache with version number and refresh after DDL
+- [x] Autocomplete from schema and dialect keywords, under 50 ms
 - [ ] Parser adapters for PostgreSQL and MySQL
 - [ ] Lint rules from the design document, with tests per rule
 - [ ] `explain`: run `EXPLAIN ANALYZE` safely, normalize the plan tree, findings, "how it ran" text

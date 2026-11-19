@@ -8,8 +8,18 @@ import { basicSetup } from "codemirror";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 
 import type { Dialect, SyntaxIssue } from "../api";
+import type { SchemaCompletion } from "../lib/completion";
 
 const dialects: Record<Dialect, SQLDialect> = { postgres: PostgreSQL, mysql: MySQL, sqlite: SQLite };
+
+/** language is the SQL support for a dialect, completing names from completion. */
+const language = (dialect: Dialect, completion?: SchemaCompletion) =>
+  sql({
+    dialect: dialects[dialect],
+    upperCaseKeywords: true,
+    schema: completion?.namespace,
+    defaultSchema: completion?.defaultSchema,
+  });
 
 // Colours come from the CSS tokens in styles.css, so the editor follows the app theme.
 const theme = EditorView.theme(
@@ -126,6 +136,8 @@ interface Props {
   onOpen?: () => void;
   /** Called after the text changes. */
   onChange?: () => void;
+  /** Tables and columns to complete, besides keywords. */
+  completion?: SchemaCompletion;
   ref?: Ref<EditorHandle>;
 }
 
@@ -156,10 +168,10 @@ const CHECK_DELAY_MS = 400;
  * SqlEditor wraps a CodeMirror 6 view. The text lives in CodeMirror, not in
  * React state, so typing never re-renders the screen. Mod-Enter runs.
  */
-export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onOpen, onChange, ref }: Props) {
+export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onOpen, onChange, completion, ref }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
-  const language = useRef(new Compartment());
+  const languageConf = useRef(new Compartment());
   const runRef = useRef(onRun);
   runRef.current = onRun;
   const checkRef = useRef(check);
@@ -187,7 +199,7 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
             ]),
           ),
           basicSetup,
-          language.current.of(sql({ dialect: dialects[dialect], upperCaseKeywords: true })),
+          languageConf.current.of(language(dialect, completion)),
           theme,
           syntaxHighlighting(highlight),
           qualifiedNames,
@@ -220,17 +232,18 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
       clearTimeout(flashTimer.current);
       v.destroy();
     };
-    // The dialect is swapped below without recreating the editor.
+    // The dialect and schema are swapped below without recreating the editor.
   }, []);
 
+  // Swapped in place, without recreating the editor, when the dialect or the
+  // schema changes.
   useEffect(() => {
-    const v = view.current;
-    if (!v) return;
-    v.dispatch({
-      effects: language.current.reconfigure(sql({ dialect: dialects[dialect], upperCaseKeywords: true })),
-    });
+    view.current?.dispatch({ effects: languageConf.current.reconfigure(language(dialect, completion)) });
+  }, [dialect, completion]);
+
+  useEffect(() => {
     // Another dialect parses differently: check again now.
-    forceLinting(v);
+    if (view.current) forceLinting(view.current);
   }, [dialect]);
 
   useImperativeHandle(
