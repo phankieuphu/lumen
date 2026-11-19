@@ -1,6 +1,9 @@
 package sqlscan
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 // Statement is one statement from a script.
 type Statement struct {
@@ -9,6 +12,8 @@ type Statement struct {
 	Text string
 	// Tokens are the statement's tokens, comments excluded.
 	Tokens []Token
+	// Start and End are the byte offsets of Text in the source.
+	Start, End int
 }
 
 // Split breaks src into statements on top-level semicolons. Statements made
@@ -26,7 +31,10 @@ func Split(src string, d Dialect) []Statement {
 	)
 	flush := func(end int) {
 		if len(toks) > 0 {
-			out = append(out, Statement{Text: strings.TrimSpace(src[start:end]), Tokens: toks})
+			raw := src[start:end]
+			s := start + len(raw) - len(strings.TrimLeftFunc(raw, unicode.IsSpace))
+			e := start + len(strings.TrimRightFunc(raw, unicode.IsSpace))
+			out = append(out, Statement{Text: src[s:e], Tokens: toks, Start: s, End: e})
 		}
 		toks = nil
 	}
