@@ -282,3 +282,17 @@ func set(words ...string) map[string]bool {
 	}
 	return m
 }
+
+// Span is where one statement sits in a script, as byte offsets.
+type Span struct{ Start, End int }
+
+// Spans returns where each statement of sql sits, in order, split the same
+// way Classify counts them.
+func Spans(sql string, d driver.Dialect) []Span {
+	stmts := sqlscan.Split(sql, sqlscan.Dialect(d))
+	out := make([]Span, len(stmts))
+	for i, st := range stmts {
+		out[i] = Span{Start: st.Start, End: st.End}
+	}
+	return out
+}

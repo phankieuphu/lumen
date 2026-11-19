@@ -8,7 +8,8 @@
 2. `make tools` installs `golangci-lint`, `gofumpt`, and `govulncheck`.
 3. `make db-up` starts PostgreSQL and MySQL; `make test-int` runs integration
    tests against them.
-4. `make app` builds the desktop app into `bin/lumen`; `make ui-dev` runs the
+4. `make app` builds the desktop app into `bin/lumen` (and `bin/lumen.app` on
+   macOS; `make run` launches it); `make ui-dev` runs the
    UI in a browser on sample data.
 
 ## Releasing

@@ -81,7 +81,7 @@ make db-up      # PostgreSQL 17 + MySQL 8.4 in Docker
 make test       # unit tests
 make test-int   # integration tests against the containers
 make lint
-make app        # build the desktop app with the UI embedded, into bin/lumen
+make app        # build the desktop app with the UI embedded, into bin/lumen (+ bin/lumen.app on macOS)
 make ui-dev     # frontend on a mock backend at http://localhost:5173 (no Go needed)
 make ui-check   # frontend typecheck, tests, and production build
 ```

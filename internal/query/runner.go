@@ -248,7 +248,8 @@ func checkPolicy(cls Classification, prof conn.Profile, req Request) error {
 	case cls.Statements == 0:
 		return ErrEmpty
 	case cls.Statements > 1:
-		return ErrMultiple
+		return fmt.Errorf("%w: the SQL holds %d statements; select one, or put the cursor in it, and run again",
+			ErrMultiple, cls.Statements)
 	case prof.ReadOnly && (cls.Kind == KindWrite || cls.Kind == KindSchema):
 		return ErrReadOnly
 	case prof.Env == conn.EnvProd && (cls.Kind == KindWrite || cls.Kind == KindSchema) && !req.ConfirmWrite:
