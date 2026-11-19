@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/phankieuphu/lumen/internal/advisor"
+	"github.com/phankieuphu/lumen/internal/lint"
 	"github.com/phankieuphu/lumen/internal/schema"
 	"github.com/phankieuphu/lumen/internal/secret"
 )
@@ -264,5 +266,53 @@ func TestSchemaCacheRefreshesAfterDDL(t *testing.T) {
 	s3, err := a.RefreshSchema(ctx, c.ID)
 	if err != nil || s3.Version <= s2.Version {
 		t.Fatalf("RefreshSchema did not reload: version %d (was %d), %v", s3.Version, s2.Version, err)
+	}
+}
+
+func TestLintUsesConnectionSettings(t *testing.T) {
+	ctx := t.Context()
+	a := openTestApp(t)
+	pw := "unused"
+	mk := func(name, env string) string {
+		t.Helper()
+		c, err := a.CreateConnection(ctx, ConnectionInput{Name: name, Dialect: "mysql", Host: "db.invalid", Database: "app", Env: env, Password: &pw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c.ID
+	}
+	dev, prod := mk("dev", "dev"), mk("prod", "prod")
+	sql := "DROP TABLE t; DELETE FROM 'é'"
+	rules := func(id string) []string {
+		t.Helper()
+		got, err := a.Lint(ctx, id, sql)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := make([]string, 0, len(got))
+		for _, f := range got {
+			out = append(out, f.Rule)
+		}
+		return out
+	}
+	// The host does not exist: Lint must not connect.
+	if got := fmt.Sprint(rules(prod)); got != "[L201]" {
+		t.Errorf("prod rules = %s, want [L201]", got)
+	}
+	if got := rules(dev); len(got) != 0 {
+		t.Errorf("dev rules = %v, want none", got)
+	}
+	if _, err := a.Lint(ctx, "no-such-connection", sql); err == nil {
+		t.Error("Lint on an unknown connection did not fail")
+	}
+}
+
+func TestLintIssueDTOsOverlap(t *testing.T) {
+	// é is 2 bytes and 1 UTF-16 unit. The second finding starts inside the
+	// first, so offsets go back.
+	sql := "é SELECT x"
+	got := lintIssueDTOs(sql, []lint.Finding{{Start: 3, End: 11, Rule: "A"}, {Start: 10, End: 11, Rule: "B"}})
+	if got[0].From != 2 || got[0].To != 10 || got[1].From != 9 || got[1].To != 10 {
+		t.Fatalf("got %+v", got)
 	}
 }
