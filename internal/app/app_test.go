@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -160,5 +161,43 @@ func TestTransactionsThroughApp(t *testing.T) {
 	}
 	if open, _ := a.Transactions(ctx); len(open) != 0 {
 		t.Fatalf("still open after delete: %+v", open)
+	}
+}
+
+func TestEditorColors(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	a, err := Open(ctx, Config{DataDir: dir, Version: "test", Secrets: &secret.Memory{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := a.EditorColors(ctx); err != nil || len(got) != 0 {
+		t.Fatalf("fresh colors = %v, %v; want empty", got, err)
+	}
+	want := map[string]string{"keyword": "#ff0000", "qualifier": "#00AA00"}
+	if _, err := a.SaveEditorColors(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+	for name, bad := range map[string]map[string]string{
+		"css injection": {"keyword": "red; background: url(x)"},
+		"short hex":     {"keyword": "#fff"},
+		"bad token":     {"key word": "#ffffff"},
+	} {
+		if _, err := a.SaveEditorColors(ctx, bad); err == nil {
+			t.Errorf("%s: saved %v", name, bad)
+		}
+	}
+	// Saved colours survive a restart, and rejected ones changed nothing.
+	if err := a.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a, err = Open(ctx, Config{DataDir: dir, Version: "test", Secrets: &secret.Memory{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close(ctx)
+	got, err := a.EditorColors(ctx)
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("colors after restart = %v, %v; want %v", got, err, want)
 	}
 }

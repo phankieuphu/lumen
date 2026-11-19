@@ -6,7 +6,7 @@ import (
 )
 
 // lifecycle lists App methods the shell calls itself; the UI must not.
-var lifecycle = map[string]bool{"Close": true, "SetEmitter": true}
+var lifecycle = map[string]bool{"Close": true, "SetEmitter": true, "SetFilePicker": true, "Unsaved": true}
 
 // TestAPIMatchesApp keeps API in step with App: every UI method is
 // forwarded with the same signature, and lifecycle methods stay hidden.
