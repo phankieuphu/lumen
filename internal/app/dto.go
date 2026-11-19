@@ -264,6 +264,11 @@ func utf16Offsets(s string) func(b int) int {
 	}
 }
 
+// SchemaChangedDTO is the payload of EventSchemaChanged.
+type SchemaChangedDTO struct {
+	ConnID string `json:"connId"`
+}
+
 // SavedFileDTO is a file the editor's SQL was saved to.
 type SavedFileDTO struct {
 	Path string `json:"path"`
