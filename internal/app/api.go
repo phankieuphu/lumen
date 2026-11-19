@@ -5,6 +5,7 @@ import (
 
 	"github.com/phankieuphu/lumen/internal/advisor"
 	"github.com/phankieuphu/lumen/internal/audit"
+	"github.com/phankieuphu/lumen/internal/explain"
 	"github.com/phankieuphu/lumen/internal/schema"
 )
 
@@ -109,6 +110,11 @@ func (p *API) Schema(ctx context.Context, connID string) (schema.Schema, error) 
 // RefreshSchema forwards to App.RefreshSchema.
 func (p *API) RefreshSchema(ctx context.Context, connID string) (schema.Schema, error) {
 	return p.a.RefreshSchema(ctx, connID)
+}
+
+// Explain forwards to App.Explain.
+func (p *API) Explain(ctx context.Context, connID, sql string) (explain.Plan, error) {
+	return p.a.Explain(ctx, connID, sql)
 }
 
 // AdvisorList forwards to App.AdvisorList.
