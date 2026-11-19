@@ -18,7 +18,7 @@ var sqliteNear = regexp.MustCompile(`near "(.*)": syntax error`)
 func (c *Checker) checkSQLite(ctx context.Context, stmt string) *failure {
 	ps, err := c.sqlite.PrepareContext(ctx, stmt)
 	if err == nil {
-		_ = ps.Close()
+		defer func() { _ = ps.Close() }()
 		return nil
 	}
 	msg := err.Error()

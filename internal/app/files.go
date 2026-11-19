@@ -150,7 +150,7 @@ func (a *App) Unsaved() bool { return a.unsaved.Load() }
 func writeAtomic(path string, data []byte) (err error) {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temporary file: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -159,16 +159,19 @@ func writeAtomic(path string, data []byte) (err error) {
 		}
 	}()
 	if _, err = tmp.Write(data); err != nil {
-		return err
+		return fmt.Errorf("write: %w", err)
 	}
 	if err = tmp.Chmod(0o644); err != nil {
-		return err
+		return fmt.Errorf("set permissions: %w", err)
 	}
 	if err = tmp.Sync(); err != nil {
-		return err
+		return fmt.Errorf("sync: %w", err)
 	}
 	if err = tmp.Close(); err != nil {
-		return err
+		return fmt.Errorf("close: %w", err)
 	}
-	return os.Rename(tmp.Name(), path)
+	if err = os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("replace file: %w", err)
+	}
+	return nil
 }

@@ -39,7 +39,7 @@ func checkMySQL(stmt string) *failure {
 		return &failure{at: -1, msg: "syntax error"}
 	}
 	rest := m[3]
-	at := -1
+	var at int
 	if strings.HasSuffix(stmt, rest) {
 		at = len(stmt) - len(rest)
 	} else {
