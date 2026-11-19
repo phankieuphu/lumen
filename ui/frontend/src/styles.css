@@ -28,6 +28,18 @@
   --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --radius: 8px;
+  /* Editor syntax colours; lib/editorColors.ts holds the same defaults and
+     overrides them with the user's choices. */
+  --syn-keyword: #7db4ff;
+  --syn-qualifier: #f49ac2;
+  --syn-member: #ff9e7a;
+  --syn-name: #e7eaf0;
+  --syn-function: #4fc9b4;
+  --syn-string: #e9b65c;
+  --syn-number: #70cf8e;
+  --syn-variable: #b9a1ff;
+  --syn-operator: #e7eaf0;
+  --syn-comment: #8a93a2;
   color-scheme: dark;
 }
 
@@ -712,6 +724,86 @@ button.tx-tag:hover {
   justify-content: center;
   gap: 12px;
   color: var(--muted);
+}
+
+/* Shown in place of the grid when a statement returns no columns. */
+.result-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px 24px;
+  overflow: auto;
+}
+
+.result-details-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.result-details-head h2 {
+  font-size: 16px;
+}
+
+.result-details-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ok-wash);
+}
+
+.result-details.failed .result-details-icon {
+  background: var(--danger-wash);
+}
+
+.result-details-error {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--danger-wash);
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font: 12.5px/20px var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.result-details-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 24px;
+  margin: 0;
+  max-width: 820px;
+}
+
+.result-details-facts dt {
+  color: var(--muted);
+}
+
+.result-details-facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  min-width: 0;
+}
+
+.result-details-sql {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 1100px;
+}
+
+.result-details-sql-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .result-loading-note {
@@ -2235,4 +2327,100 @@ button.erd-chip:hover {
   padding: 0;
   display: grid;
   gap: 4px;
+}
+
+/* SQL file controls in the query toolbar */
+
+.save-bar {
+  display: flex;
+  gap: 6px;
+}
+
+.file-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dirty-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+/* Editor colors screen */
+
+.colors-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 480px) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  .colors-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.colors-list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  align-self: start;
+}
+
+.color-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+}
+
+.color-row + .color-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.color-swatch {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+.color-swatch::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+
+.color-swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 5px;
+}
+
+.color-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.color-label > span:first-child {
+  font-weight: 600;
+}
+
+.colors-preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  overflow: hidden;
+}
+
+.colors-preview .editor {
+  flex: 1;
+  border-bottom: none;
 }

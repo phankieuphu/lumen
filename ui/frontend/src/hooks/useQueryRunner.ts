@@ -11,6 +11,9 @@ export interface RunState {
   error?: string;
   /** SQL waiting for the user to confirm a production write. */
   pending?: string;
+  /** The SQL of the last request that finished, and when it finished. */
+  sql?: string;
+  finishedAt?: Date;
 }
 
 /** Rows per page requested from the backend. */
@@ -58,10 +61,14 @@ export function useQueryRunner(connId: string, onFinish?: (summary?: Summary) =>
       let summary: Summary | undefined;
       try {
         summary = await backend.runQuery({ requestId, connId, sql, pageSize: PAGE_SIZE, confirmWrite, txId });
-        if (current()) setState({ phase: "done", summary });
+        if (current()) setState({ phase: "done", summary, sql, finishedAt: new Date() });
       } catch (err) {
         if (current()) {
-          setState(needsConfirmation(err) ? { phase: "confirm", pending: sql } : { phase: "error", error: errorMessage(err) });
+          setState(
+            needsConfirmation(err)
+              ? { phase: "confirm", pending: sql }
+              : { phase: "error", error: errorMessage(err), sql, finishedAt: new Date() },
+          );
         }
       } finally {
         if (current()) active.current = null;
