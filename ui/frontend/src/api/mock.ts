@@ -2,7 +2,7 @@
 // in development builds (see index.ts) and never ships in dist/.
 import { splitStatements } from "../lib/statements";
 import { createMockFeatures } from "./mockFeatures";
-import type { AuditEntry, Backend, Connection, DbSchema, ForeignKey, HistoryEntry, Kind, LintIssue, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
+import type { AuditEntry, Backend, Connection, DbSchema, ExplainNode, ExplainPlan, ForeignKey, HistoryEntry, Kind, LintIssue, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
@@ -19,6 +19,58 @@ const classify = (sql: string): Kind => {
 
 // A small shop schema for the relations diagram: two schemas, a view, a
 // self reference, a composite key, and tables with no relations.
+/** mockPlan is modelled on a real PostgreSQL plan of a join over orders. */
+function mockPlan(analyzed: boolean): ExplainPlan {
+  const n = (id: number, op: string, kind: ExplainNode["kind"], x: Partial<ExplainNode>): ExplainNode => ({
+    id, op, kind, estRows: 0, estCost: 0, rows: 0, loops: analyzed ? 1 : 0, timeMs: 0, rowsRemoved: 0, ...x,
+  });
+  const a = (v: number) => (analyzed ? v : 0);
+  const root = n(0, "Sort", "sort", {
+    detail: "o.total DESC", estRows: 138, estCost: 761, rows: a(500), timeMs: a(2.1),
+    children: [
+      n(1, "Hash Join", "join", {
+        detail: "(o.customer_id = c.id)", estRows: 138, estCost: 756, rows: a(500), timeMs: a(2.0),
+        children: [
+          n(2, "Seq Scan", "scan", { relation: "orders", detail: "(status = 'open'::text)", estRows: 138, estCost: 713, rows: a(500), rowsRemoved: a(49500), timeMs: a(1.8) }),
+          n(3, "Hash", "other", {
+            estRows: 2000, estCost: 31, rows: a(2000), timeMs: a(0.2),
+            children: [n(4, "Seq Scan", "scan", { relation: "customers", estRows: 2000, estCost: 31, rows: a(2000), timeMs: a(0.1) })],
+          }),
+        ],
+      }),
+    ],
+  });
+  return {
+    dialect: "postgres", analyzed, estimated: true, root, planningMs: a(0.2), executionMs: a(2.1), truncated: false,
+    note: analyzed
+      ? "Ran with EXPLAIN ANALYZE in a read-only transaction that was rolled back."
+      : "Planned but not run: only reads are run with EXPLAIN ANALYZE, so the numbers are estimates.",
+    findings: [{
+      severity: "warning", title: "Full scan of orders", nodeId: 2,
+      detail: analyzed
+        ? "Seq Scan reads every row of orders: 50,000 rows, and the filter throws away 49,500 of them. An index on the columns in (status = 'open'::text) would let it read only the rows it keeps."
+        : "Seq Scan reads every row of orders. An index on the columns in (status = 'open'::text) would let it read only the rows it keeps.",
+    }],
+    steps: analyzed
+      ? [
+          "1. Read every row of orders, keeping those that match (status = 'open'::text): 500 rows, 49,500 thrown away, done 1.8 ms in.",
+          "2. Read every row of customers: 2,000 rows, done 0.1 ms in.",
+          "3. Built a hash table of those rows: 2,000 rows, done 0.2 ms in.",
+          "4. Joined the rows above with a hash join (o.customer_id = c.id): 500 rows, done 2.0 ms in.",
+          "5. Sorted the rows by o.total DESC: 500 rows, done 2.1 ms in.",
+          "Finished in 2.1 ms, after 0.2 ms of planning.",
+        ]
+      : [
+          "1. Read every row of orders, keeping those that match (status = 'open'::text): about 138 rows.",
+          "2. Read every row of customers: about 2,000 rows.",
+          "3. Built a hash table of those rows: about 2,000 rows.",
+          "4. Joined the rows above with a hash join (o.customer_id = c.id): about 138 rows.",
+          "5. Sorted the rows by o.total DESC: about 138 rows.",
+        ],
+    raw: JSON.stringify([{ Plan: { "Node Type": "Sort" } }], null, 2),
+  };
+}
+
 function mockSchema(conn: Connection | undefined): DbSchema {
   const main = conn?.dialect === "postgres" ? "public" : conn?.dialect === "sqlite" ? "main" : (conn?.database ?? "app");
   const c = (name: string, type: string, flags = "") => ({ name, type, nullable: flags.includes("?"), primaryKey: flags.includes("pk") });
@@ -288,6 +340,11 @@ export function createMockBackend(): Backend {
     async schema(connId) {
       await sleep(150);
       return { ...mockSchema(conns.find((c) => c.id === connId)), version: schemaVersion };
+    },
+    async explain(_connId, sql) {
+      await sleep(250);
+      if (!sql.trim()) throw new Error("query: no statement to run");
+      return mockPlan(classify(sql) === "read");
     },
     async refreshSchema(connId) {
       schemaVersion++;
