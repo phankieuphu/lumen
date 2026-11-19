@@ -26,6 +26,11 @@ func (p *API) Statements(dialect, sql string) []StatementDTO {
 	return p.a.Statements(dialect, sql)
 }
 
+// Lint forwards to App.Lint.
+func (p *API) Lint(ctx context.Context, connID, sql string) ([]LintIssueDTO, error) {
+	return p.a.Lint(ctx, connID, sql)
+}
+
 // CheckSyntax forwards to App.CheckSyntax.
 func (p *API) CheckSyntax(ctx context.Context, dialect, sql string) []SyntaxIssueDTO {
 	return p.a.CheckSyntax(ctx, dialect, sql)

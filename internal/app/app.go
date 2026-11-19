@@ -18,6 +18,7 @@ import (
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/conn"
 	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/lint"
 	"github.com/phankieuphu/lumen/internal/query"
 	"github.com/phankieuphu/lumen/internal/schema"
 	"github.com/phankieuphu/lumen/internal/secret"
@@ -163,6 +164,18 @@ func (a *App) schemaChanged(connID string) {
 // strings index them.
 func (a *App) Statements(dialect, sql string) []StatementDTO {
 	return statementDTOs(sql, query.Spans(sql, driver.Dialect(dialect)))
+}
+
+// Lint returns what the lint rules (docs/lint-rules.md) find in sql, for
+// the editor to mark. It reads the connection's settings but does not
+// connect. Offsets are UTF-16 code units, as JavaScript strings index them.
+func (a *App) Lint(ctx context.Context, connID, sql string) ([]LintIssueDTO, error) {
+	p, err := a.conns.Profile(ctx, connID)
+	if err != nil {
+		return nil, err
+	}
+	fs := lint.Check(sql, lint.Context{Dialect: p.Dialect, Prod: p.Env == conn.EnvProd})
+	return lintIssueDTOs(sql, fs), nil
 }
 
 // CheckSyntax returns the syntax errors in sql, parsed offline with the
