@@ -97,3 +97,51 @@ export function txHue(txId: string): number {
 
 /** txTagText is the label, or a short form of the id when there is none. */
 export const txTagText = (txId: string, label?: string) => label || txId.replace(/^tx-/, "").slice(0, 6);
+
+const pastTense: Record<string, string> = { INSERT: "Inserted", UPDATE: "Updated", DELETE: "Deleted", MERGE: "Merged", REPLACE: "Replaced" };
+const withObject = new Set(["CREATE", "ALTER", "DROP", "TRUNCATE", "GRANT", "REVOKE", "COMMENT"]);
+
+/**
+ * statementVerb names what a statement does from its leading keywords, e.g.
+ * UPDATE or CREATE TABLE, skipping comments. Empty when there is none.
+ */
+export function statementVerb(sql: string): string {
+  const words = sql
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/--[^\n]*/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.toUpperCase());
+  const [first = "", second = ""] = words;
+  if (!/^[A-Z]+$/.test(first)) return "";
+  if (withObject.has(first) && /^[A-Z]+$/.test(second)) return `${first} ${second}`;
+  return first;
+}
+
+const plural = (n: number, word: string) => `${formatCount(n)} ${n === 1 ? word : `${word}s`}`;
+
+/**
+ * outcomeTitle is the one-line result of a finished statement, e.g.
+ * "Updated 3 rows" or "CREATE TABLE completed".
+ */
+export function outcomeTitle(
+  s: { status: string; kind: string; rowCount: number; rowsAffected: number; txEnd?: string },
+  sql: string,
+): string {
+  switch (s.status) {
+    case "error":
+      return "Statement failed";
+    case "blocked":
+      return "Statement blocked";
+    case "cancelled":
+      return "Statement cancelled";
+  }
+  if (s.txEnd === "commit") return "Transaction committed";
+  if (s.txEnd === "rollback") return "Transaction rolled back";
+  if (s.kind === "read") return s.rowCount === 0 ? "No rows returned" : `${plural(s.rowCount, "row")} returned`;
+  const verb = statementVerb(sql);
+  const past = pastTense[verb];
+  if (past && s.rowsAffected >= 0) return `${past} ${plural(s.rowsAffected, "row")}`;
+  return verb ? `${verb} completed` : "Statement completed";
+}

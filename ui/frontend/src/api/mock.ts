@@ -1,5 +1,6 @@
 // In-memory backend for `npm run dev` in a plain browser. It is loaded only
 // in development builds (see index.ts) and never ships in dist/.
+import { splitStatements } from "../lib/statements";
 import { createMockFeatures } from "./mockFeatures";
 import type { AuditEntry, Backend, Connection, DbSchema, ForeignKey, HistoryEntry, Kind, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
 
@@ -71,6 +72,8 @@ export function createMockBackend(): Backend {
   const audit: AuditEntry[] = [];
   const pageListeners = new Set<(p: Page) => void>();
   const cancelled = new Set<string>();
+  let editorColors: Record<string, string> = {};
+  const files = new Map<string, string>();
   const txs = new Map<string, Transaction>();
 
   const add = (c: Omit<Connection, "id" | "createdAt" | "updatedAt">) => {
@@ -187,6 +190,42 @@ export function createMockBackend(): Backend {
       }
       return finish("ok", { columns, rowCount: sent, truncated: total > maxRows });
     },
+    statements: async (_dialect, sql) => splitStatements(sql),
+    // No file system in the browser: the dialog is a prompt, and files are kept in memory.
+    async saveSqlAs(filename, sql) {
+      const name = window.prompt("Save SQL as", filename);
+      if (!name) return { path: "", name: "" };
+      const path = `/mock/${name}`;
+      files.set(path, sql);
+      return { path, name };
+    },
+    async saveSql(path, sql) {
+      if (!files.has(path)) throw new Error("app: save: choose the file with Save As first");
+      files.set(path, sql);
+      return { path, name: path.split("/").pop() ?? path };
+    },
+    async openSql() {
+      const names = [...files.keys()].map((p) => p.split("/").pop()).join(", ");
+      const name = window.prompt(`Open SQL file${names ? ` (saved: ${names})` : ""}`);
+      if (!name) return { path: "", name: "", sql: "" };
+      const path = `/mock/${name}`;
+      const sql = files.get(path);
+      if (sql === undefined) throw new Error(`app: open: ${name}: no such file`);
+      return { path, name, sql };
+    },
+    setUnsaved: async () => {},
+    editorColors: async () => ({ ...editorColors }),
+    async saveEditorColors(colors) {
+      editorColors = { ...colors };
+      return { ...editorColors };
+    },
+    // The real parsers are in Go; the mock flags a few common typos.
+    checkSyntax: async (_dialect, sql) =>
+      [...sql.matchAll(/\b(SELEC|FORM|WHER|UPDTE|DELTE|INSRT)\b/gi)].map((m) => ({
+        from: m.index,
+        to: m.index + m[0].length,
+        message: `syntax error at or near "${m[0]}"`,
+      })),
     async cancelQuery(requestId) {
       cancelled.add(requestId);
     },

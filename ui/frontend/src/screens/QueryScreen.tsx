@@ -1,16 +1,22 @@
-import { type RefObject, useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { type RefObject, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import { type Connection, errorMessage, type Transaction, useBackend } from "../api";
+import { type Connection, errorMessage, type SavedFile, type Transaction, useBackend } from "../api";
 import { Elapsed } from "../components/Elapsed";
 import { Icon } from "../components/icons";
+import { ResultDetails } from "../components/ResultDetails";
 import { ResultGrid } from "../components/ResultGrid";
-import { type EditorHandle, SqlEditor } from "../components/SqlEditor";
+import { type EditorHandle, type RunTarget, SqlEditor } from "../components/SqlEditor";
 import { Banner, Confirm, EnvBadge, EnvDot, KindBadge, StatusBadge, TxTag } from "../components/ui";
 import { useQueryRunner } from "../hooks/useQueryRunner";
 import { type TxNotice, useTransaction } from "../hooks/useTransaction";
 import { connTarget, dialectName, formatCount, formatDuration } from "../lib/format";
+import { statementAt } from "../lib/statements";
 
-const RUN_KEYS = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ Enter" : "Ctrl+Enter";
+const MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+const RUN_KEYS = MAC ? "⌘ Enter" : "Ctrl+Enter";
+const SAVE_KEYS = MAC ? "⌘S" : "Ctrl+S";
+const SAVE_AS_KEYS = MAC ? "⇧⌘S" : "Ctrl+Shift+S";
+const OPEN_KEYS = MAC ? "⌘O" : "Ctrl+O";
 
 interface Props {
   conn: Connection;
@@ -33,10 +39,20 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
     },
     tx?.id,
   );
-  const runSql = (sql: string) => {
+  // Runs the selection, or the statement at the cursor when the editor holds
+  // several. If splitting fails, the whole text goes and the backend says why.
+  const runTarget = async (t: RunTarget) => {
     txn.dismiss();
-    void run(sql);
+    if (t.selection !== undefined) return run(t.selection);
+    const ranges = await backend.statements(conn.dialect, t.text).catch(() => []);
+    const at = ranges.length > 1 ? statementAt(ranges, t.cursor) : undefined;
+    if (!at) return run(t.text);
+    editorRef.current?.flash(at.from, at.to);
+    return run(t.text.slice(at.from, at.to));
   };
+  const runSql = (t: RunTarget) => void runTarget(t);
+  const file = useSqlFile(editorRef);
+  const checkSyntax = useCallback((sql: string) => backend.checkSyntax(conn.dialect, sql), [backend, conn.dialect]);
   const txAction = (fn: () => Promise<void>) => () => void fn().finally(onRan);
   const [copied, setCopied] = useState<{ text: string; failed?: boolean }>();
 
@@ -62,6 +78,8 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
   const loaded = useSyncExternalStore(store.subscribe, () => store.rowCount);
   const hasColumns = useSyncExternalStore(store.subscribe, () => store.columns.length > 0);
   const loading = running || (state.phase === "done" && summary?.kind === "read" && loaded < summary.rowCount);
+  // A statement that returned no columns gets a details panel instead of an empty grid.
+  const details = !loading && !hasColumns && (state.phase === "done" || state.phase === "error") && state.sql !== undefined;
 
   return (
     <section className={`query${conn.env === "prod" ? " prod" : ""}${tx ? " in-tx" : ""}`} aria-label="Query editor">
@@ -74,7 +92,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           <button
             type="button"
             className="primary run"
-            onClick={() => runSql(editorRef.current?.sql() ?? "")}
+            onClick={() => editorRef.current && runSql(editorRef.current.target())}
             disabled={txn.busy}
             title={`Run (${RUN_KEYS})`}
           >
@@ -88,6 +106,10 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           onCommit={txAction(txn.commit)}
           onRollback={txAction(txn.rollback)}
         />
+        <button type="button" onClick={file.open} title={`Open a SQL file (${OPEN_KEYS})`}>
+          <Icon name="open" size={14} /> Open
+        </button>
+        <SaveControls file={file.current} dirty={file.dirty} onSave={(as) => void file.save(as)} />
         <span className="spacer" />
         <span className="conn-pill" title={`${dialectName(conn.dialect)} · ${connTarget(conn)}`}>
           <EnvDot env={conn.env} />
@@ -95,11 +117,19 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           <span className="muted">{dialectName(conn.dialect)}</span>
         </span>
       </div>
-      <SqlEditor ref={editorRef} dialect={conn.dialect} onRun={runSql} />
+      <SqlEditor
+        ref={editorRef}
+        dialect={conn.dialect}
+        onRun={runSql}
+        check={checkSyntax}
+        onSave={(as) => void file.save(as)}
+        onOpen={file.open}
+        onChange={file.markDirty}
+      />
+      {file.error && <Banner tone="danger">{file.error}</Banner>}
       {txn.error && <Banner tone="danger">{txn.error}</Banner>}
       {txn.notice && <TxEndBanner notice={txn.notice} />}
-      {state.phase === "error" && <Banner tone="danger">{state.error}</Banner>}
-      {summary?.error && <Banner tone="danger">{summary.error}</Banner>}
+      {summary?.error && hasColumns && <Banner tone="danger">{summary.error}</Banner>}
       {summary?.truncated && <Banner tone="warn">Stopped at the row limit. Refine the query to see the rest.</Banner>}
       <div className="result-head" aria-live="polite">
         <span className="result-tab">Results</span>
@@ -143,6 +173,15 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
             <span className="spinner large" aria-hidden="true" />
             <span>{running ? "Running query…" : "Loading rows…"}</span>
           </div>
+        ) : details ? (
+          <ResultDetails
+            conn={conn}
+            summary={summary}
+            error={state.error}
+            sql={state.sql ?? ""}
+            finishedAt={state.finishedAt}
+            onCopy={copy}
+          />
         ) : (
           <ResultGrid store={store} onCopy={copy} />
         )}
@@ -156,8 +195,22 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
         <span className="statusbar-item">{conn.readOnly ? "Read-only" : "Read and write"}</span>
         {tx && <span className="statusbar-item tx-status">In a transaction: nothing is kept until you commit</span>}
         <span className="spacer" />
-        <span className="statusbar-item">{RUN_KEYS} runs the selection, or everything</span>
+        <span className="statusbar-item">{RUN_KEYS} runs the selection, or the statement at the cursor</span>
       </footer>
+      {file.confirmingOpen && (
+        <Confirm title="Discard unsaved changes?" confirmLabel="Discard and open" danger onConfirm={file.openAnyway} onCancel={file.cancelOpen}>
+          <p>
+            {file.current ? (
+              <>
+                Your changes to <strong>{file.current.name}</strong> are not saved.
+              </>
+            ) : (
+              "The SQL in the editor is not saved to a file."
+            )}{" "}
+            Opening another file replaces it.
+          </p>
+        </Confirm>
+      )}
       {state.phase === "confirm" && (
         <Confirm title="Write to production?" confirmLabel="Run on production" danger onConfirm={confirm} onCancel={dismiss}>
           <p>
@@ -173,6 +226,112 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
         </Confirm>
       )}
     </section>
+  );
+}
+
+/**
+ * useSqlFile opens and saves the editor text as a file: the first save, and
+ * Save As, ask where with the native dialog; later saves go to the same file.
+ * dirty is set by edits since the last open or save; opening over unsaved
+ * edits asks first. Unsaved changes to a file are reported to the app, which
+ * asks before the window closes.
+ */
+function useSqlFile(editorRef: RefObject<EditorHandle | null>) {
+  const backend = useBackend();
+  const [current, setCurrent] = useState<SavedFile>();
+  const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string>();
+  const [confirmingOpen, setConfirmingOpen] = useState(false);
+  const busy = useRef(false);
+
+  const unsaved = !!current && dirty;
+  useEffect(() => {
+    backend.setUnsaved(unsaved).catch(() => {});
+  }, [backend, unsaved]);
+
+  const save = useCallback(
+    async (as: boolean) => {
+      const editor = editorRef.current;
+      if (!editor || busy.current) return;
+      busy.current = true;
+      const text = editor.target().text;
+      try {
+        const saved =
+          current && !as ? await backend.saveSql(current.path, text) : await backend.saveSqlAs(current?.name ?? "query.sql", text);
+        if (!saved.path) return; // the dialog was cancelled
+        setCurrent(saved);
+        setError(undefined);
+        // Edits made while saving stay unsaved.
+        if (editor.target().text === text) setDirty(false);
+      } catch (err) {
+        setError(`Not saved: ${errorMessage(err)}`);
+      } finally {
+        busy.current = false;
+      }
+    },
+    [backend, current, editorRef],
+  );
+
+  const openAnyway = useCallback(async () => {
+    setConfirmingOpen(false);
+    const editor = editorRef.current;
+    if (!editor || busy.current) return;
+    busy.current = true;
+    try {
+      const opened = await backend.openSql();
+      if (!opened.path) return; // the dialog was cancelled
+      editor.setText(opened.sql);
+      setCurrent({ path: opened.path, name: opened.name });
+      setDirty(false); // after setText, whose change marked it dirty
+      setError(undefined);
+      requestAnimationFrame(() => editor.focus());
+    } catch (err) {
+      setError(`Not opened: ${errorMessage(err)}`);
+    } finally {
+      busy.current = false;
+    }
+  }, [backend, editorRef]);
+
+  const hasText = () => (editorRef.current?.target().text.trim() ?? "") !== "";
+  const open = () => {
+    if (dirty && hasText()) setConfirmingOpen(true);
+    else void openAnyway();
+  };
+  const cancelOpen = useCallback(() => setConfirmingOpen(false), []);
+  const markDirty = useCallback(() => setDirty(true), []);
+  return { current, dirty, error, save, open, openAnyway, cancelOpen, confirmingOpen, markDirty };
+}
+
+interface SaveControlsProps {
+  file: SavedFile | undefined;
+  dirty: boolean;
+  onSave: (as: boolean) => void;
+}
+
+/** SaveControls shows the file the SQL is saved to, with Save and Save As. */
+function SaveControls({ file, dirty, onSave }: SaveControlsProps) {
+  if (!file) {
+    return (
+      <button type="button" onClick={() => onSave(false)} title={`Save the SQL to a file (${SAVE_KEYS})`}>
+        <Icon name="save" size={14} /> Save
+      </button>
+    );
+  }
+  return (
+    <div className="save-bar" role="group" aria-label="SQL file">
+      <button
+        type="button"
+        onClick={() => onSave(false)}
+        title={`${dirty ? "Save changes to" : "Saved to"} ${file.path} (${SAVE_KEYS})`}
+      >
+        <Icon name="save" size={14} />
+        <span className="file-name">{file.name}</span>
+        {dirty && <span className="dirty-dot" role="status" aria-label="Unsaved changes" />}
+      </button>
+      <button type="button" onClick={() => onSave(true)} title={`Save to another file (${SAVE_AS_KEYS})`}>
+        Save as…
+      </button>
+    </div>
   );
 }
 

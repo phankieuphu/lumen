@@ -21,6 +21,46 @@ func (p *API) RunQuery(ctx context.Context, in RunInput) (SummaryDTO, error) {
 	return p.a.RunQuery(ctx, in)
 }
 
+// Statements forwards to App.Statements.
+func (p *API) Statements(dialect, sql string) []StatementDTO {
+	return p.a.Statements(dialect, sql)
+}
+
+// CheckSyntax forwards to App.CheckSyntax.
+func (p *API) CheckSyntax(ctx context.Context, dialect, sql string) []SyntaxIssueDTO {
+	return p.a.CheckSyntax(ctx, dialect, sql)
+}
+
+// EditorColors forwards to App.EditorColors.
+func (p *API) EditorColors(ctx context.Context) (map[string]string, error) {
+	return p.a.EditorColors(ctx)
+}
+
+// SaveEditorColors forwards to App.SaveEditorColors.
+func (p *API) SaveEditorColors(ctx context.Context, colors map[string]string) (map[string]string, error) {
+	return p.a.SaveEditorColors(ctx, colors)
+}
+
+// SaveSQLAs forwards to App.SaveSQLAs.
+func (p *API) SaveSQLAs(ctx context.Context, filename, sql string) (SavedFileDTO, error) {
+	return p.a.SaveSQLAs(ctx, filename, sql)
+}
+
+// SaveSQL forwards to App.SaveSQL.
+func (p *API) SaveSQL(ctx context.Context, path, sql string) (SavedFileDTO, error) {
+	return p.a.SaveSQL(ctx, path, sql)
+}
+
+// OpenSQL forwards to App.OpenSQL.
+func (p *API) OpenSQL(ctx context.Context) (OpenedFileDTO, error) {
+	return p.a.OpenSQL(ctx)
+}
+
+// SetUnsaved forwards to App.SetUnsaved.
+func (p *API) SetUnsaved(ctx context.Context, unsaved bool) {
+	p.a.SetUnsaved(ctx, unsaved)
+}
+
 // CancelQuery forwards to App.CancelQuery.
 func (p *API) CancelQuery(ctx context.Context, requestID string) error {
 	return p.a.CancelQuery(ctx, requestID)

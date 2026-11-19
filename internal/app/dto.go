@@ -3,11 +3,13 @@ package app
 import (
 	"encoding/hex"
 	"time"
+	"unicode/utf16"
 
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/conn"
 	"github.com/phankieuphu/lumen/internal/driver"
 	"github.com/phankieuphu/lumen/internal/query"
+	"github.com/phankieuphu/lumen/internal/sqlparse"
 )
 
 // DTOs are the JSON shapes the frontend sees. Durations are milliseconds and
@@ -212,6 +214,67 @@ func auditDTO(e audit.Entry) AuditDTO {
 		Kind: e.Kind, Status: string(e.Status), RowsAffected: e.RowsAffected, DurationMs: e.Duration.Milliseconds(),
 		SQL: e.SQL, Error: e.Error, TxID: e.TxID, TxLabel: e.TxLabel, Hash: hex.EncodeToString(e.Hash),
 	}
+}
+
+// StatementDTO is where one statement sits in the editor text, in UTF-16
+// code units: [From, To).
+type StatementDTO struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
+// statementDTOs converts byte spans of sql, in order, to UTF-16 offsets.
+func statementDTOs(sql string, spans []query.Span) []StatementDTO {
+	out := make([]StatementDTO, len(spans))
+	at := utf16Offsets(sql)
+	for i, sp := range spans {
+		out[i] = StatementDTO{From: at(sp.Start), To: at(sp.End)}
+	}
+	return out
+}
+
+// SyntaxIssueDTO is a syntax error in the editor text, in UTF-16 code
+// units: [From, To).
+type SyntaxIssueDTO struct {
+	From    int    `json:"from"`
+	To      int    `json:"to"`
+	Message string `json:"message"`
+}
+
+// syntaxIssueDTOs converts issues of sql, in order, to UTF-16 offsets.
+func syntaxIssueDTOs(sql string, issues []sqlparse.Issue) []SyntaxIssueDTO {
+	out := make([]SyntaxIssueDTO, len(issues))
+	at := utf16Offsets(sql)
+	for i, is := range issues {
+		out[i] = SyntaxIssueDTO{From: at(is.Start), To: at(is.End), Message: is.Message}
+	}
+	return out
+}
+
+// utf16Offsets returns a converter from byte offsets of s to UTF-16 offsets.
+// It walks s once, so offsets must be passed in non-decreasing order.
+func utf16Offsets(s string) func(b int) int {
+	pos, units := 0, 0 // a byte offset in s and its UTF-16 offset
+	return func(b int) int {
+		for _, r := range s[pos:b] {
+			units += utf16.RuneLen(r)
+		}
+		pos = b
+		return units
+	}
+}
+
+// SavedFileDTO is a file the editor's SQL was saved to.
+type SavedFileDTO struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+}
+
+// OpenedFileDTO is a SQL file opened into the editor.
+type OpenedFileDTO struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+	SQL  string `json:"sql"`
 }
 
 func timeString(t time.Time) string {

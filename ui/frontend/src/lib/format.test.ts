@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cellText, connTarget, copyValue, dialectName, formatDuration, MAX_CELL_CHARS, oneLine, rowToTSV, txHue, txTagText } from "./format";
+import { cellText, connTarget, copyValue, dialectName, formatDuration, MAX_CELL_CHARS, oneLine, outcomeTitle, rowToTSV, statementVerb, txHue, txTagText } from "./format";
 
 describe("cellText", () => {
   it.each([
@@ -82,5 +82,33 @@ describe("transaction tags", () => {
   it("text prefers the label", () => {
     expect(txTagText("tx-0a1b2c3d4e5f", "fix order 42")).toBe("fix order 42");
     expect(txTagText("tx-0a1b2c3d4e5f")).toBe("0a1b2c");
+  });
+});
+
+describe("statementVerb", () => {
+  it.each([
+    { name: "plain", in: "update t set a = 1", want: "UPDATE" },
+    { name: "object kind", in: "create table t (id int)", want: "CREATE TABLE" },
+    { name: "skips comments", in: "-- fix\n/* why */ delete from t", want: "DELETE" },
+    { name: "empty", in: "  ", want: "" },
+    { name: "not a keyword", in: "(select 1)", want: "" },
+  ])("$name", ({ in: sql, want }) => {
+    expect(statementVerb(sql)).toBe(want);
+  });
+});
+
+describe("outcomeTitle", () => {
+  const ok = { status: "ok", kind: "write", rowCount: 0, rowsAffected: 3 };
+  it.each([
+    { name: "rows changed", s: ok, sql: "update t set a = 1", want: "Updated 3 rows" },
+    { name: "one row", s: { ...ok, rowsAffected: 1 }, sql: "insert into t values (1)", want: "Inserted 1 row" },
+    { name: "unknown count", s: { ...ok, rowsAffected: -1 }, sql: "delete from t", want: "DELETE completed" },
+    { name: "schema", s: { ...ok, kind: "schema", rowsAffected: 0 }, sql: "create index i on t (a)", want: "CREATE INDEX completed" },
+    { name: "read without rows", s: { ...ok, kind: "read" }, sql: "select 1 where false", want: "No rows returned" },
+    { name: "commit", s: { ...ok, kind: "session", txEnd: "commit" }, sql: "commit", want: "Transaction committed" },
+    { name: "error", s: { ...ok, status: "error" }, sql: "update t", want: "Statement failed" },
+    { name: "blocked", s: { ...ok, status: "blocked" }, sql: "drop table t", want: "Statement blocked" },
+  ])("$name", ({ s, sql, want }) => {
+    expect(outcomeTitle(s, sql)).toBe(want);
   });
 });
