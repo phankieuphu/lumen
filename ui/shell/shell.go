@@ -10,8 +10,10 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/phankieuphu/lumen/internal/app"
 )
@@ -49,6 +51,7 @@ func Run(ctx context.Context, a *app.App, log *slog.Logger) error {
 		return fmt.Errorf("shell: frontend assets: %w", err)
 	}
 
+	g := &guard{lumen: a}
 	w := application.New(application.Options{
 		Name:        "lumen",
 		Description: "Desktop SQL client",
@@ -59,13 +62,27 @@ func Run(ctx context.Context, a *app.App, log *slog.Logger) error {
 		Services: []application.Service{application.NewService(app.NewAPI(a))},
 		Assets:   application.AssetOptions{Handler: assetHandler(assets)},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		// Runs on the main thread, where a dialog cannot be waited for: the
+		// quit is held while the guard asks, and repeated if the user agrees.
+		ShouldQuit: func() bool {
+			if g.settled() {
+				return true
+			}
+			go func() {
+				if g.confirm() {
+					g.app.Quit()
+				}
+			}()
+			return false
+		},
 		// Matches assets/linux/<id>.desktop, which gives the window its icon:
 		// GTK 4 has no API to set one from Icon.
 		Linux: application.LinuxOptions{ApplicationID: appID},
 	})
 	a.SetEmitter(emitter{w})
+	g.app = w
 
-	w.Window.NewWithOptions(application.WebviewWindowOptions{
+	win := w.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "lumen",
 		Width:            width,
 		Height:           height,
@@ -73,6 +90,13 @@ func Run(ctx context.Context, a *app.App, log *slog.Logger) error {
 		MinHeight:        minHeight,
 		BackgroundColour: background,
 		URL:              "/",
+	})
+	a.SetFilePicker(picker{app: w, win: win})
+	// Window hooks run off the main thread, so the dialog can be waited for.
+	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		if !g.confirm() {
+			e.Cancel()
+		}
 	})
 
 	// Quit on SIGINT/SIGTERM. The goroutine ends when Run returns, whichever
@@ -132,6 +156,74 @@ func (m minLevel) WithAttrs(as []slog.Attr) slog.Handler {
 
 func (m minLevel) WithGroup(name string) slog.Handler {
 	return minLevel{h: m.h.WithGroup(name), min: m.min}
+}
+
+// picker shows native file dialogs, as sheets on the window on macOS.
+type picker struct {
+	app *application.App
+	win *application.WebviewWindow
+}
+
+func (p picker) SaveFile(title, filename string) (string, error) {
+	path, err := p.app.Dialog.SaveFile().
+		SetMessage(title).
+		SetFilename(filename).
+		AddFilter("SQL files", "*.sql").
+		CanCreateDirectories(true).
+		AttachToWindow(p.win).
+		PromptForSingleSelection()
+	if err != nil {
+		return "", fmt.Errorf("shell: save dialog: %w", err)
+	}
+	return path, nil
+}
+
+func (p picker) OpenFile(title string) (string, error) {
+	path, err := p.app.Dialog.OpenFile().
+		SetTitle(title).
+		CanChooseFiles(true).
+		AddFilter("SQL files", "*.sql").
+		AddFilter("All files", "*").
+		AttachToWindow(p.win).
+		PromptForSingleSelection()
+	if err != nil {
+		return "", fmt.Errorf("shell: open dialog: %w", err)
+	}
+	return path, nil
+}
+
+// guard asks before the window closes or the app quits while the editor's
+// SQL file has unsaved changes. Once the user chooses to discard them, it
+// does not ask again.
+type guard struct {
+	app     *application.App
+	lumen   *app.App
+	discard atomic.Bool
+}
+
+// settled reports whether closing needs no question.
+func (g *guard) settled() bool { return g.discard.Load() || !g.lumen.Unsaved() }
+
+// confirm asks, unless settled, and blocks until the user answers. Never call
+// it on the main thread: the dialog runs there.
+func (g *guard) confirm() bool {
+	if g.settled() {
+		return true
+	}
+	answer := make(chan bool, 1)
+	d := g.app.Dialog.Warning().
+		SetTitle("Unsaved SQL changes").
+		SetMessage("Your changes to the SQL file will be lost if you don't save them.")
+	d.AddButton("Discard changes").OnClick(func() { answer <- true })
+	keep := d.AddButton("Cancel").OnClick(func() { answer <- false })
+	d.SetDefaultButton(keep)
+	d.SetCancelButton(keep)
+	d.Show()
+	if <-answer {
+		g.discard.Store(true)
+		return true
+	}
+	return false
 }
 
 // emitter sends app events to the window as Wails events.
