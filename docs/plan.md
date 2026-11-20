@@ -90,7 +90,7 @@ Tick tasks off as they are done; each list ends with its phase gate.
 - [x] Explain tab with plan table, steps, and findings
 - [x] Locks tab: locks this session took
 - [x] `debug`: split a query into parts and count rows; step through a script; dry run with rollback and time limit
-- [ ] Debug tab
+- [x] Debug tab
 - [ ] Gate: one week of daily use without AI
 
 ### Phase 3 · AI version 1

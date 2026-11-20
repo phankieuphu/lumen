@@ -3,12 +3,14 @@ import { type RefObject, useCallback, useEffect, useRef, useState, useSyncExtern
 import { type Connection, errorMessage, type SavedFile, type Transaction, useBackend } from "../api";
 import { Elapsed } from "../components/Elapsed";
 import { Icon } from "../components/icons";
+import { DebugView } from "../components/DebugView";
 import { type ExplainState, ExplainView } from "../components/ExplainView";
 import { LocksView } from "../components/LocksView";
 import { ResultDetails } from "../components/ResultDetails";
 import { ResultGrid } from "../components/ResultGrid";
 import { type EditorHandle, type EditorIssue, type RunTarget, SqlEditor } from "../components/SqlEditor";
 import { Banner, Confirm, EnvBadge, EnvDot, KindBadge, StatusBadge, TxTag } from "../components/ui";
+import { useDebug } from "../hooks/useDebug";
 import { useQueryRunner } from "../hooks/useQueryRunner";
 import { useSchemaCompletion } from "../hooks/useSchemaCompletion";
 import { useTxLocks } from "../hooks/useTxLocks";
@@ -55,7 +57,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
     editorRef.current?.flash(at.from, at.to);
     return t.text.slice(at.from, at.to);
   };
-  const [tab, setTab] = useState<"results" | "explain" | "locks">("results");
+  const [tab, setTab] = useState<"results" | "explain" | "locks" | "debug">("results");
   const runSql = (t: RunTarget) => {
     txn.dismiss();
     setTab("results");
@@ -75,6 +77,17 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
         (err: unknown) => seq === explainSeq.current && setExplained({ phase: "error", error: errorMessage(err) }),
       );
   };
+  const debug = useDebug({
+    conn,
+    editorRef,
+    txId: tx?.id,
+    onRan: () => {
+      onRan();
+      void txn.refresh();
+    },
+  });
+  // Each debug action takes the editor's selection, or its statement or text.
+  const onEditor = (fn: (t: RunTarget) => void) => () => editorRef.current && fn(editorRef.current.target());
   const file = useSqlFile(editorRef);
   const completion = useSchemaCompletion(conn.id);
   // Syntax errors, then lint findings: a statement with a syntax error gets no
@@ -194,6 +207,14 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
               </span>
             )}
           </button>
+          <button type="button" role="tab" aria-selected={tab === "debug"} className="result-tab" onClick={() => setTab("debug")}>
+            Debug
+            {(debug.steps.phase === "ready" || debug.steps.phase === "running") && (
+              <span className="tab-count" title="Stepping through a script">
+                {debug.steps.results.filter(Boolean).length}/{debug.steps.steps.filter((s) => !s.control).length}
+              </span>
+            )}
+          </button>
           <button type="button" role="tab" aria-selected={tab === "locks"} className="result-tab" onClick={() => setTab("locks")}>
             Locks
             {tx && txLocks.state.report?.waiting && (
@@ -261,6 +282,31 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           <ExplainView state={explained} keys={EXPLAIN_KEYS} />
         </div>
       )}
+      {tab === "debug" && (
+        <div className="result">
+          <DebugView
+            conn={conn}
+            mode={debug.mode}
+            onMode={debug.setMode}
+            parts={debug.parts}
+            dry={debug.dry}
+            steps={debug.steps}
+            limitMs={debug.limitMs}
+            onLimit={debug.setLimitMs}
+            onSplit={onEditor(debug.splitParts)}
+            onDryRun={onEditor(debug.dryRun)}
+            onCancelDry={debug.cancelDry}
+            onStartSteps={onEditor(debug.startSteps)}
+            onStep={debug.runStep}
+            onStepAll={debug.runAllSteps}
+            onShowRows={(sql) => {
+              setTab("results");
+              run(sql);
+            }}
+            onFlash={debug.flash}
+          />
+        </div>
+      )}
       {tab === "locks" && (
         <div className="result">
           <LocksView tx={tx} state={txLocks.state} onRefresh={txLocks.refresh} />
@@ -291,6 +337,23 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
             )}{" "}
             Opening another file replaces it.
           </p>
+        </Confirm>
+      )}
+      {debug.confirming && (
+        <Confirm
+          title={debug.confirming.what === "dry" ? "Dry run on production?" : "Write to production?"}
+          confirmLabel={debug.confirming.what === "dry" ? "Dry run on production" : "Run on production"}
+          danger
+          onConfirm={debug.confirm}
+          onCancel={debug.dismiss}
+        >
+          <p>
+            <strong>{conn.name}</strong> is a production connection.{" "}
+            {debug.confirming.what === "dry"
+              ? "The writes really run and are then rolled back: triggers fire and rows stay locked until the end. Each one is recorded in the audit log."
+              : "This statement changes data or schema in the stepping's transaction, and is only kept if you commit. It is recorded in the audit log."}
+          </p>
+          <pre className="sql-preview">{debug.confirming.sql}</pre>
         </Confirm>
       )}
       {state.phase === "confirm" && (
