@@ -6,6 +6,7 @@ import (
 	"github.com/phankieuphu/lumen/internal/advisor"
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/explain"
+	"github.com/phankieuphu/lumen/internal/locks"
 	"github.com/phankieuphu/lumen/internal/schema"
 )
 
@@ -90,6 +91,11 @@ func (p *API) RollbackTx(ctx context.Context, txID string) (SummaryDTO, error) {
 // Transactions forwards to App.Transactions.
 func (p *API) Transactions(ctx context.Context) ([]TxDTO, error) {
 	return p.a.Transactions(ctx)
+}
+
+// TxLocks forwards to App.TxLocks.
+func (p *API) TxLocks(ctx context.Context, txID string) (locks.Report, error) {
+	return p.a.TxLocks(ctx, txID)
 }
 
 // TransactionHistory forwards to App.TransactionHistory.

@@ -16,6 +16,7 @@ import (
 
 	"github.com/phankieuphu/lumen/internal/advisor"
 	"github.com/phankieuphu/lumen/internal/lint"
+	"github.com/phankieuphu/lumen/internal/locks"
 	"github.com/phankieuphu/lumen/internal/schema"
 	"github.com/phankieuphu/lumen/internal/secret"
 )
@@ -145,6 +146,12 @@ func TestTransactionsThroughApp(t *testing.T) {
 		t.Fatal(err)
 	}
 	tx, err := a.BeginTx(ctx, c.ID, " cleanup ")
+	if _, lerr := a.TxLocks(ctx, tx.ID); err == nil && !errors.Is(lerr, locks.ErrUnsupported) {
+		t.Fatalf("TxLocks on SQLite: err = %v, want ErrUnsupported", lerr)
+	}
+	if _, lerr := a.TxLocks(ctx, "tx-unknown"); !errors.Is(lerr, query.ErrTxNotFound) {
+		t.Fatalf("TxLocks on an unknown transaction: err = %v, want ErrTxNotFound", lerr)
+	}
 	if err != nil || tx.Label != "cleanup" || tx.StartedAt == "" {
 		t.Fatalf("begin = %+v, %v", tx, err)
 	}

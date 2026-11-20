@@ -16,6 +16,7 @@ import (
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/conn"
 	"github.com/phankieuphu/lumen/internal/driver"
+	"github.com/phankieuphu/lumen/internal/locks"
 	"github.com/phankieuphu/lumen/internal/sqlscan"
 )
 
@@ -69,6 +70,9 @@ type tx struct {
 	prof    conn.Profile
 	started time.Time
 	session driver.Session
+	// backend is the database's id for session, for reading its locks; 0
+	// when the database has none (SQLite) or it could not be read.
+	backend int64
 
 	mu         sync.Mutex
 	done       bool // guarded by mu
@@ -178,6 +182,11 @@ func (r *Runner) Begin(ctx context.Context, connID, label string) (TxInfo, error
 			return err
 		}
 		t.session = s
+		// Best effort: without it the transaction works, its locks just
+		// cannot be listed.
+		if id, err := locks.SessionID(ctx, s, prof.Dialect); err == nil {
+			t.backend = id
+		}
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		for _, o := range r.txs {
@@ -235,6 +244,19 @@ func (r *Runner) Transactions() []TxInfo {
 	r.mu.Unlock()
 	slices.SortFunc(out, func(a, b TxInfo) int { return a.StartedAt.Compare(b.StartedAt) })
 	return out
+}
+
+// TxSession returns the connection of an open transaction and the
+// database's id for its session, for locks.Held. The id is 0 when the
+// database has none.
+func (r *Runner) TxSession(txID string) (connID string, sessionID int64, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t, ok := r.txs[txID]
+	if !ok {
+		return "", 0, ErrTxNotFound
+	}
+	return t.connID, t.backend, nil
 }
 
 // RollbackConn cancels running requests on connID's open transaction and

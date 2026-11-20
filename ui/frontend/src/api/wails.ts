@@ -45,6 +45,7 @@ export const wailsBackend: Backend = {
   rollbackTx: (txId) => call("RollbackTx", txId),
   transactions: () => call("Transactions"),
   transactionHistory: (txId) => call("TransactionHistory", txId),
+  txLocks: (txId) => call("TxLocks", txId),
   schema: (connId) => call("Schema", connId),
   refreshSchema: (connId) => call("RefreshSchema", connId),
   explain: (connId, sql) => call("Explain", connId, sql),
