@@ -135,6 +135,10 @@ func TestTransactions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// The pinned session's database id, for listing its locks.
+			if connID, id, err := e.runner.TxSession(tx.ID); err != nil || connID != p.ID || id <= 0 {
+				t.Fatalf("TxSession = %q, %d, %v", connID, id, err)
+			}
 			e.mustRun(t, p, "INSERT INTO lumen_tx VALUES (1)", inTx(tx.ID))
 			if got := rows(inTx(tx.ID)); got != int64(1) {
 				t.Fatalf("count in tx = %v", got)

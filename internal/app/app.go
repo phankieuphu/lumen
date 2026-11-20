@@ -20,6 +20,7 @@ import (
 	"github.com/phankieuphu/lumen/internal/driver"
 	"github.com/phankieuphu/lumen/internal/explain"
 	"github.com/phankieuphu/lumen/internal/lint"
+	"github.com/phankieuphu/lumen/internal/locks"
 	"github.com/phankieuphu/lumen/internal/query"
 	"github.com/phankieuphu/lumen/internal/schema"
 	"github.com/phankieuphu/lumen/internal/secret"
@@ -365,6 +366,28 @@ func (a *App) Explain(ctx context.Context, connID, sql string) (explain.Plan, er
 		return explain.Plan{}, fmt.Errorf("%w: select the statement to explain, or put the cursor in it", query.ErrMultiple)
 	}
 	return explain.Run(ctx, c, sql, explain.Options{Analyze: cls.IsRead()})
+}
+
+// locksTimeout bounds a read of a transaction's locks.
+const locksTimeout = 10 * time.Second
+
+// TxLocks returns the locks an open transaction holds or waits for, read
+// from a separate session so the transaction itself is untouched.
+func (a *App) TxLocks(ctx context.Context, txID string) (locks.Report, error) {
+	connID, id, err := a.runner.TxSession(txID)
+	if err != nil {
+		return locks.Report{}, err
+	}
+	if id == 0 {
+		return locks.Report{}, locks.ErrUnsupported
+	}
+	ctx, cancel := context.WithTimeout(ctx, locksTimeout)
+	defer cancel()
+	c, _, err := a.conns.Get(ctx, connID)
+	if err != nil {
+		return locks.Report{}, err
+	}
+	return locks.Held(ctx, c, id)
 }
 
 // advisorTimeout bounds a statistics or plan read.
