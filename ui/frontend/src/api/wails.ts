@@ -49,6 +49,10 @@ export const wailsBackend: Backend = {
   schema: (connId) => call("Schema", connId),
   refreshSchema: (connId) => call("RefreshSchema", connId),
   explain: (connId, sql) => call("Explain", connId, sql),
+  debugSteps: (dialect, sql) => call("DebugSteps", dialect, sql),
+  debugParts: (connId, sql) => call("DebugParts", connId, sql),
+  dryRun: (input) => call("DryRun", input),
+  cancelDebug: (requestId) => call("CancelDebug", requestId),
   onSchemaChanged: (fn) => Events.On(EVENT_SCHEMA_CHANGED, (ev) => fn((ev.data as { connId: string }).connId)),
 
   auditList: (filter) => call("AuditList", filter),
