@@ -32,6 +32,9 @@ const (
 	StatusError     Status = "error"
 	StatusBlocked   Status = "blocked" // stopped by policy before reaching the server
 	StatusCancelled Status = "cancelled"
+	// StatusRolledBack marks a statement of a dry run: it ran, and its
+	// transaction was rolled back.
+	StatusRolledBack Status = "rolledback"
 )
 
 // MaxSQLBytes caps the SQL text stored per entry; longer text is truncated

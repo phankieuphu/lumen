@@ -5,6 +5,7 @@ import (
 
 	"github.com/phankieuphu/lumen/internal/advisor"
 	"github.com/phankieuphu/lumen/internal/audit"
+	"github.com/phankieuphu/lumen/internal/debug"
 	"github.com/phankieuphu/lumen/internal/explain"
 	"github.com/phankieuphu/lumen/internal/locks"
 	"github.com/phankieuphu/lumen/internal/schema"
@@ -116,6 +117,26 @@ func (p *API) Schema(ctx context.Context, connID string) (schema.Schema, error) 
 // RefreshSchema forwards to App.RefreshSchema.
 func (p *API) RefreshSchema(ctx context.Context, connID string) (schema.Schema, error) {
 	return p.a.RefreshSchema(ctx, connID)
+}
+
+// DebugSteps forwards to App.DebugSteps.
+func (p *API) DebugSteps(dialect, sql string) []debug.Step {
+	return p.a.DebugSteps(dialect, sql)
+}
+
+// DebugParts forwards to App.DebugParts.
+func (p *API) DebugParts(ctx context.Context, connID, sql string) (debug.Report, error) {
+	return p.a.DebugParts(ctx, connID, sql)
+}
+
+// DryRun forwards to App.DryRun.
+func (p *API) DryRun(ctx context.Context, in DryRunInput) (debug.DryRunResult, error) {
+	return p.a.DryRun(ctx, in)
+}
+
+// CancelDebug forwards to App.CancelDebug.
+func (p *API) CancelDebug(ctx context.Context, requestID string) error {
+	return p.a.CancelDebug(ctx, requestID)
 }
 
 // Explain forwards to App.Explain.

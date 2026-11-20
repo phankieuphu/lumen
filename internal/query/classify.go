@@ -262,6 +262,17 @@ func isCall(toks []sqlscan.Token, i int) bool {
 	return i+1 < len(toks) && toks[i+1].Kind == sqlscan.Punct && toks[i+1].Text == "("
 }
 
+// SideEffectCall returns the first built-in function with side effects
+// that toks call, upper-cased, or "".
+func SideEffectCall(toks []sqlscan.Token) string {
+	for i := range toks {
+		if isSideEffectCall(toks, i) {
+			return toks[i].Upper()
+		}
+	}
+	return ""
+}
+
 func isSideEffectCall(toks []sqlscan.Token, i int) bool {
 	return toks[i].Kind == sqlscan.Word && sideEffectFuncs[toks[i].Upper()] && isCall(toks, i)
 }

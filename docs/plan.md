@@ -89,7 +89,7 @@ Tick tasks off as they are done; each list ends with its phase gate.
 - [x] `explain`: run `EXPLAIN ANALYZE` safely, normalize the plan tree, findings, "how it ran" text
 - [x] Explain tab with plan table, steps, and findings
 - [x] Locks tab: locks this session took
-- [ ] `debug`: split a query into parts and count rows; step through a script; dry run with rollback and time limit
+- [x] `debug`: split a query into parts and count rows; step through a script; dry run with rollback and time limit
 - [ ] Debug tab
 - [ ] Gate: one week of daily use without AI
 
