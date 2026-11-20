@@ -132,6 +132,10 @@ func txControl(sql string, d driver.Dialect) txOp {
 	return txNone
 }
 
+// IsTxControl reports whether sql is a single statement that starts or ends
+// a transaction, which Run handles itself instead of sending to the server.
+func IsTxControl(sql string, d driver.Dialect) bool { return txControl(sql, d) != txNone }
+
 func beginSQL(d driver.Dialect) string {
 	if d == driver.MySQL {
 		return "START TRANSACTION"
