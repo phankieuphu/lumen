@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `cmd/lumen` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
 | `ui/shell` | The only Wails import; opens the window, serves the embedded UI, binds `app.API`, and emits events | `app` |
-| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `advisor`, `explain`, `locks`, `sqlparse`, `lint`, `store` |
+| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `advisor`, `explain`, `locks`, `debug`, `sqlparse`, `lint`, `store` |
 | `internal/query` | Run / cancel by request ID, page streaming, classifier | `conn`, `audit`, `store`, `driver`, `locks` |
 | `internal/conn` | Connection profiles, pool cache, read-only, env tags | `driver`, `store`, `secret` |
 | `internal/audit` | Append-only, hash-chained log; verify; CSV/JSON export | `store` |
@@ -14,6 +14,7 @@
 | `internal/secret` | OS keychain (and in-memory store for tests) | — |
 | `internal/advisor` | Top slow statements from `pg_stat_statements` / `performance_schema`, filtered and sorted on the server; generic plan on PostgreSQL from an `EXPLAIN` that never runs the statement | `driver`, `sqlscan` |
 | `internal/explain` | Plans with EXPLAIN (ANALYZE for reads only, in a read-only transaction that is rolled back), normalized from PostgreSQL JSON, the MySQL tree format, and SQLite's query plan; findings and a "how it ran" story | `driver`, `sqlscan` |
+| `internal/debug` | Splits a SELECT into its parts (WITH queries, each table joined, WHERE, GROUP BY, HAVING, UNION sides) and counts each one's rows in read-only transactions; lists a script's statements for stepping through; dry-runs a script in a transaction that is always rolled back, taking only statements the database can undo | `driver`, `query`, `sqlscan` |
 | `internal/locks` | The locks one session holds or waits for (PostgreSQL `pg_locks`; MySQL `performance_schema.data_locks` and `metadata_locks`), read from a separate session, each with what it means | `driver` |
 | `internal/schema` | Tables, columns, PKs, and foreign keys from catalog queries, bounded by table/column limits; a versioned per-connection cache that the query path invalidates after DDL and at the end of a transaction | `driver` |
 | `internal/sqlparse` | Offline syntax check for the editor with each dialect's parser (`pg_query_go`, CGO and not on Windows; the TiDB parser for MySQL; SQLite's own parser on an empty in-memory database), and adapters that turn the PostgreSQL and MySQL trees into one shared syntax tree for lint and debug | `driver`, `sqlscan` |

@@ -66,6 +66,7 @@ type App struct {
 	runner    *query.Runner
 	syntax    *sqlparse.Checker
 	schemas   *schema.Cache
+	debugRuns runs
 	emitter   Emitter
 	picker    FilePicker
 	picked    pickedFiles

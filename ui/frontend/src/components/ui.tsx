@@ -10,7 +10,9 @@ export function Badge({ tone, children }: { tone: string; children: ReactNode })
 }
 
 export const EnvBadge = ({ env }: { env: Env | string }) => <Badge tone={env}>{env}</Badge>;
-export const StatusBadge = ({ status }: { status: Status }) => <Badge tone={status}>{status}</Badge>;
+export const StatusBadge = ({ status }: { status: Status }) => (
+  <Badge tone={status}>{status === "rolledback" ? "rolled back" : status}</Badge>
+);
 export const KindBadge = ({ kind }: { kind: Kind | string }) => <Badge tone={`kind-${kind}`}>{kind}</Badge>;
 
 /**
