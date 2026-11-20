@@ -5,7 +5,8 @@ export type Dialect = "postgres" | "mysql" | "sqlite";
 export type Env = "dev" | "staging" | "prod";
 export type TLSMode = "disable" | "prefer" | "require" | "verify-full";
 export type Kind = "read" | "session" | "write" | "schema";
-export type Status = "ok" | "error" | "blocked" | "cancelled";
+/** "rolledback" marks a dry run's statement in the audit log. */
+export type Status = "ok" | "error" | "blocked" | "cancelled" | "rolledback";
 
 export interface ConnectionInput {
   name: string;
