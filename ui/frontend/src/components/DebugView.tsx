@@ -253,7 +253,7 @@ function StepControls(p: Props) {
   const active = s.phase === "ready" || s.phase === "running";
   if (!active) {
     return (
-      <button type="button" className="primary" onClick={p.onStartSteps}>
+      <button type="button" className="primary" onClick={p.onStartSteps} disabled={s.phase === "starting"}>
         <Icon name="step" size={14} /> Start
       </button>
     );
@@ -272,6 +272,7 @@ function StepControls(p: Props) {
 }
 
 function StepsPanel({ state, onShowRows, onFlash }: { state: StepsState; onShowRows: Props["onShowRows"]; onFlash: Props["onFlash"] }) {
+  if (state.phase === "starting") return <Waiting text="Starting…" />;
   if (state.phase === "idle" || (state.phase === "error" && state.steps.length === 0)) {
     return (
       <Empty icon="step">
@@ -299,6 +300,7 @@ function StepsPanel({ state, onShowRows, onFlash }: { state: StepsState; onShowR
           </span>
         </div>
       )}
+      {state.error && <Banner tone="danger">{state.error}</Banner>}
       {failed && state.phase !== "ended" && (
         <Banner tone="warn">A statement failed. On PostgreSQL the transaction cannot go on: roll back and start again.</Banner>
       )}

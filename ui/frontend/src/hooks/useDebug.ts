@@ -42,7 +42,7 @@ export interface StepResult {
 }
 
 export interface StepsState extends Partial<Taken> {
-  phase: "idle" | "ready" | "running" | "ended" | "error";
+  phase: "idle" | "starting" | "ready" | "running" | "ended" | "error";
   steps: DebugStep[];
   results: (StepResult | undefined)[];
   /** The next step to run, or -1 when all have run. */
@@ -68,6 +68,7 @@ export const DRY_RUN_LIMITS = [
 const STEP_PAGE = 100;
 const STEP_MAX_ROWS = 10_000;
 const PREVIEW_ROWS = 20;
+const IDLE_STEPS: StepsState = { phase: "idle", steps: [], results: [], at: -1 };
 
 interface Options {
   conn: Connection;
@@ -89,28 +90,47 @@ export function useDebug({ conn, editorRef, txId, onRan }: Options) {
   const [mode, setMode] = useState<DebugMode>("parts");
   const [parts, setParts] = useState<PartsState>({ phase: "idle" });
   const [dry, setDry] = useState<DryState>({ phase: "idle" });
-  const [steps, setSteps] = useState<StepsState>({ phase: "idle", steps: [], results: [], at: -1 });
+  const [steps, setStepsState] = useState<StepsState>(IDLE_STEPS);
   const [confirming, setConfirming] = useState<DebugConfirm>();
   const [limitMs, setLimitMs] = useState(30_000);
   const partsSeq = useRef(0);
+  const stepsSeq = useRef(0);
   const dryId = useRef<string | null>(null);
+  // The stepping state, current at once: a run-all loop reads it between
+  // steps, before React renders.
   const stepsRef = useRef(steps);
-  stepsRef.current = steps;
+  const setSteps = useCallback((next: StepsState | ((s: StepsState) => StepsState)) => {
+    stepsRef.current = typeof next === "function" ? next(stepsRef.current) : next;
+    setStepsState(stepsRef.current);
+  }, []);
+  // Set while "Run the rest" runs, so a production confirmation resumes it.
+  const runningAll = useRef(false);
+  // The pending confirmation, current at once for the run-all loop.
+  const confirmingRef = useRef<DebugConfirm | undefined>(undefined);
 
-  // A new connection starts over.
+  // A new connection starts over; a dry run still running is stopped, as it
+  // is when the screen goes away.
   useEffect(() => {
+    const stop = () => {
+      if (dryId.current) void backend.cancelDebug(dryId.current).catch(() => undefined);
+      dryId.current = null;
+    };
     partsSeq.current++;
-    dryId.current = null;
+    stepsSeq.current++;
+    runningAll.current = false;
+    stop();
     setParts({ phase: "idle" });
     setDry({ phase: "idle" });
-    setSteps({ phase: "idle", steps: [], results: [], at: -1 });
+    setSteps(IDLE_STEPS);
+    confirmingRef.current = undefined;
     setConfirming(undefined);
-  }, [conn.id]);
+    return stop;
+  }, [backend, conn.id, setSteps]);
 
   // Stepping lives in one transaction: once it ends, so does the stepping.
   useEffect(() => {
     setSteps((s) => (s.txId && s.txId !== txId && (s.phase === "ready" || s.phase === "running") ? { ...s, phase: "ended" } : s));
-  }, [txId]);
+  }, [txId, setSteps]);
 
   const flash = useCallback(
     (base: number | undefined, from: number, to: number) => {
@@ -183,19 +203,31 @@ export function useDebug({ conn, editorRef, txId, onRan }: Options) {
 
   const startSteps = async (t: RunTarget) => {
     setMode("steps");
+    if (stepsRef.current.phase === "starting") return;
+    const seq = ++stepsSeq.current;
     const taken = script(t);
+    setSteps({ ...IDLE_STEPS, phase: "starting" });
+    let opened: string | undefined;
     try {
       const list = await backend.debugSteps(conn.dialect, taken.sql);
       if (list.length === 0) throw new Error("No statement to step through.");
       // Use the open transaction, or open one for the stepping.
-      const id = txId ?? (await backend.beginTx(conn.id, "Step through")).id;
-      if (!txId) onRan();
+      let id = txId;
+      if (!id) {
+        id = opened = (await backend.beginTx(conn.id, "Step through")).id;
+        onRan();
+      }
+      if (seq !== stepsSeq.current) {
+        // The screen moved on: do not leave behind a transaction nobody sees.
+        if (opened) await backend.rollbackTx(opened).finally(onRan);
+        return;
+      }
       const at = nextStep(list, 0);
       setSteps({ phase: "ready", steps: list, results: list.map(() => undefined), at, txId: id, ...taken });
       const first = list[at];
       if (first) flash(taken.base, first.start, first.end);
     } catch (err) {
-      setSteps({ phase: "error", steps: [], results: [], at: -1, error: errorMessage(err), ...taken });
+      if (seq === stepsSeq.current) setSteps({ ...IDLE_STEPS, phase: "error", error: errorMessage(err), ...taken });
     }
   };
 
@@ -206,7 +238,7 @@ export function useDebug({ conn, editorRef, txId, onRan }: Options) {
     if (!step || !s.txId || s.phase !== "ready") return false;
     const index = s.at;
     flash(s.base, step.start, step.end);
-    setSteps({ ...s, phase: "running" });
+    setSteps((cur) => ({ ...cur, phase: "running", error: undefined }));
     let result: StepResult;
     try {
       const summary = await backend.runQuery({
@@ -216,8 +248,9 @@ export function useDebug({ conn, editorRef, txId, onRan }: Options) {
       result = { summary, error: summary.error };
     } catch (err) {
       if (needsConfirmation(err)) {
-        setSteps((cur) => ({ ...cur, phase: "ready" }));
-        setConfirming({ what: "step", sql: step.sql });
+        setSteps((cur) => ({ ...cur, phase: cur.phase === "running" ? "ready" : cur.phase }));
+        confirmingRef.current = { what: "step", sql: step.sql };
+        setConfirming(confirmingRef.current);
         return false;
       }
       result = { error: errorMessage(err) };
@@ -229,27 +262,47 @@ export function useDebug({ conn, editorRef, txId, onRan }: Options) {
       const results = cur.results.slice();
       results[index] = result;
       const at = nextStep(cur.steps, index + 1);
-      // The transaction may have ended while the step ran.
-      const phase = cur.phase === "ended" ? "ended" : "ready";
+      // The transaction may have ended while the step ran, or with it.
+      const phase = cur.phase === "ended" || result.summary?.txEnd ? "ended" : "ready";
       return { ...cur, results, at, phase };
     });
     const next = s.steps[nextStep(s.steps, index + 1)];
     if (next) flash(s.base, next.start, next.end);
-    return ok;
+    return ok && stepsRef.current.phase === "ready" && stepsRef.current.at >= 0;
   };
 
-  const runAllSteps = async () => {
-    while (await runStep()) {
-      if (stepsRef.current.at < 0) break;
+  /** runRest runs steps until one fails, asks for confirmation, or none are left. */
+  const runRest = async (confirmFirst = false) => {
+    runningAll.current = true;
+    try {
+      let go = await runStep(confirmFirst);
+      while (go && runningAll.current) go = await runStep();
+    } finally {
+      // A confirmation prompt keeps the run going once answered.
+      if (!confirmingRef.current) runningAll.current = false;
     }
   };
 
   const confirm = () => {
     const c = confirming;
     setConfirming(undefined);
+    confirmingRef.current = undefined;
     if (!c) return;
     if (c.what === "dry" && dry.sql !== undefined) void runDry({ sql: dry.sql, base: dry.base ?? 0 }, true);
-    if (c.what === "step") void runStep(true);
+    if (c.what !== "step") return;
+    if (stepsRef.current.phase !== "ready") {
+      runningAll.current = false;
+      setSteps((cur) => ({ ...cur, error: "The step did not run: the transaction ended." }));
+      return;
+    }
+    if (runningAll.current) void runRest(true);
+    else void runStep(true);
+  };
+
+  const dismiss = () => {
+    runningAll.current = false;
+    confirmingRef.current = undefined;
+    setConfirming(undefined);
   };
 
   return {
@@ -258,8 +311,8 @@ export function useDebug({ conn, editorRef, txId, onRan }: Options) {
     dryRun, cancelDry,
     startSteps: (t: RunTarget) => void startSteps(t),
     runStep: () => void runStep(),
-    runAllSteps: () => void runAllSteps(),
-    confirm, dismiss: () => setConfirming(undefined),
+    runAllSteps: () => void runRest(),
+    confirm, dismiss,
     flash,
   };
 }
