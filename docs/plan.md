@@ -88,7 +88,7 @@ Tick tasks off as they are done; each list ends with its phase gate.
 - [ ] Lint rules from the design document, with tests per rule (a proposed set is in [lint-rules.md](lint-rules.md); check it against the design document)
 - [x] `explain`: run `EXPLAIN ANALYZE` safely, normalize the plan tree, findings, "how it ran" text
 - [x] Explain tab with plan table, steps, and findings
-- [ ] Locks tab: locks this session took
+- [x] Locks tab: locks this session took
 - [ ] `debug`: split a query into parts and count rows; step through a script; dry run with rollback and time limit
 - [ ] Debug tab
 - [ ] Gate: one week of daily use without AI

@@ -2,7 +2,7 @@
 // in development builds (see index.ts) and never ships in dist/.
 import { splitStatements } from "../lib/statements";
 import { createMockFeatures } from "./mockFeatures";
-import type { AuditEntry, Backend, Connection, DbSchema, ExplainNode, ExplainPlan, ForeignKey, HistoryEntry, Kind, LintIssue, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
+import type { AuditEntry, Backend, Connection, DbSchema, ExplainNode, ExplainPlan, ForeignKey, HistoryEntry, Kind, LintIssue, Lock, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
@@ -335,6 +335,24 @@ export function createMockBackend(): Backend {
       return endTx(tx, "rollback");
     },
     transactions: async () => [...txs.values()].map((t) => ({ ...t })),
+    async txLocks(txId) {
+      await sleep(120);
+      const tx = txs.get(txId);
+      if (!tx) throw new Error("query: no open transaction with this ID");
+      const locks: Lock[] = [];
+      if (tx.writes > 0) {
+        locks.push(
+          { type: "table", mode: "RowExclusiveLock", granted: true, object: "orders", meaning: "Taken by INSERT, UPDATE, and DELETE. Others can still read and write other rows; it blocks ALTER, DROP, TRUNCATE, and CREATE INDEX until you commit." },
+          { type: "transaction", mode: "ExclusiveLock", granted: true, object: "transaction 7514", meaning: "Your transaction's own ID. Anyone who changes a row you changed waits on it until you commit or roll back." },
+        );
+      } else if (tx.statements > 0) {
+        locks.push({ type: "table", mode: "AccessShareLock", granted: true, object: "orders", meaning: "Taken by reads. Blocks only ALTER TABLE, DROP, TRUNCATE, and VACUUM FULL." });
+      }
+      return {
+        locks, waiting: false, truncated: false,
+        note: "PostgreSQL keeps row locks on the rows themselves, not in this list: the table lock and your transaction ID stand for them.",
+      };
+    },
     transactionHistory: async (txId) => history.filter((h) => h.txId === txId).reverse(),
 
     async schema(connId) {
