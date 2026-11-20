@@ -4,12 +4,14 @@ import { type Connection, errorMessage, type SavedFile, type Transaction, useBac
 import { Elapsed } from "../components/Elapsed";
 import { Icon } from "../components/icons";
 import { type ExplainState, ExplainView } from "../components/ExplainView";
+import { LocksView } from "../components/LocksView";
 import { ResultDetails } from "../components/ResultDetails";
 import { ResultGrid } from "../components/ResultGrid";
 import { type EditorHandle, type EditorIssue, type RunTarget, SqlEditor } from "../components/SqlEditor";
 import { Banner, Confirm, EnvBadge, EnvDot, KindBadge, StatusBadge, TxTag } from "../components/ui";
 import { useQueryRunner } from "../hooks/useQueryRunner";
 import { useSchemaCompletion } from "../hooks/useSchemaCompletion";
+import { useTxLocks } from "../hooks/useTxLocks";
 import { type TxNotice, useTransaction } from "../hooks/useTransaction";
 import { connTarget, dialectName, formatCount, formatDuration } from "../lib/format";
 import { statementAt } from "../lib/statements";
@@ -53,7 +55,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
     editorRef.current?.flash(at.from, at.to);
     return t.text.slice(at.from, at.to);
   };
-  const [tab, setTab] = useState<"results" | "explain">("results");
+  const [tab, setTab] = useState<"results" | "explain" | "locks">("results");
   const runSql = (t: RunTarget) => {
     txn.dismiss();
     setTab("results");
@@ -109,6 +111,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
     return () => clearTimeout(id);
   }, [copied]);
   const running = state.phase === "running";
+  const txLocks = useTxLocks(tx?.id, tab === "locks", running, tx?.statements ?? 0);
   const { summary } = state;
   // Rows can still be arriving after the summary; keep showing progress until
   // the store holds as many as the summary reports.
@@ -191,6 +194,14 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
               </span>
             )}
           </button>
+          <button type="button" role="tab" aria-selected={tab === "locks"} className="result-tab" onClick={() => setTab("locks")}>
+            Locks
+            {tx && txLocks.state.report?.waiting && (
+              <span className="tab-count waiting" title="Waiting for a lock">
+                !
+              </span>
+            )}
+          </button>
         </div>
         {tab === "results" && summary && (
           <>
@@ -207,7 +218,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
             {loaded > 0 && ` ${formatCount(loaded)} rows`}
           </span>
         )}
-        {tab === "explain" ? null : copied ? (
+        {tab !== "results" ? null : copied ? (
           <span className={copied.failed ? "copy-note danger-text" : "copy-note ok-text"} role="status">
             <Icon name={copied.failed ? "alert" : "check"} size={13} strokeWidth={2} /> {copied.text}
           </span>
@@ -248,6 +259,11 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
       {tab === "explain" && (
         <div className="result">
           <ExplainView state={explained} keys={EXPLAIN_KEYS} />
+        </div>
+      )}
+      {tab === "locks" && (
+        <div className="result">
+          <LocksView tx={tx} state={txLocks.state} onRefresh={txLocks.refresh} />
         </div>
       )}
       <footer className="statusbar">

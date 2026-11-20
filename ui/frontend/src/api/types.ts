@@ -164,6 +164,24 @@ export interface ExplainPlan {
   truncated: boolean;
 }
 
+/** Mirrors internal/locks. */
+export interface Lock {
+  type: "table" | "row" | "transaction" | "metadata" | "advisory" | "other";
+  mode: string;
+  /** False while the session waits for the lock. */
+  granted: boolean;
+  object: string;
+  detail?: string;
+  meaning: string;
+}
+
+export interface LockReport {
+  locks: Lock[];
+  waiting: boolean;
+  note: string;
+  truncated: boolean;
+}
+
 export interface HistoryEntry extends TxTagged {
   id: number;
   connId: string;
@@ -422,6 +440,8 @@ export interface Backend {
   rollbackTx(txId: string): Promise<Summary>;
   /** Open transactions on every connection. */
   transactions(): Promise<Transaction[]>;
+  /** The locks an open transaction holds or waits for. */
+  txLocks(txId: string): Promise<LockReport>;
   /** Every statement of one transaction, oldest first. */
   transactionHistory(txId: string): Promise<HistoryEntry[]>;
   /** Tables, columns, and foreign keys of the connection's database, cached until DDL. */

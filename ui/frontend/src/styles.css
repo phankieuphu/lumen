@@ -2707,3 +2707,24 @@ button.erd-chip:hover {
   font: 11.5px/1.5 var(--mono);
   white-space: pre;
 }
+
+/* Locks tab */
+
+.tab-count.waiting {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+
+.locks-table td {
+  vertical-align: top;
+}
+
+.locks-table tr.waiting td {
+  background: var(--danger-wash);
+}
+
+.locks-meaning {
+  min-width: 260px;
+  color: var(--muted);
+  line-height: 1.45;
+}
