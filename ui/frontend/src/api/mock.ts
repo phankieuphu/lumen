@@ -2,7 +2,7 @@
 // in development builds (see index.ts) and never ships in dist/.
 import { splitStatements } from "../lib/statements";
 import { createMockFeatures } from "./mockFeatures";
-import type { AuditEntry, Backend, Connection, DbSchema, ExplainNode, ExplainPlan, ForeignKey, HistoryEntry, Kind, LintIssue, Lock, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
+import type { AuditEntry, Backend, Connection, DbSchema, DebugPart, DebugStep, ExplainNode, ExplainPlan, ForeignKey, HistoryEntry, Kind, LintIssue, Lock, Page, Row, Status, Summary, Table, Transaction, TxEnd } from "./types";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
@@ -19,6 +19,48 @@ const classify = (sql: string): Kind => {
 
 // A small shop schema for the relations diagram: two schemas, a view, a
 // self reference, a composite key, and tables with no relations.
+function mockSteps(sql: string): DebugStep[] {
+  return splitStatements(sql).map(({ from, to }) => {
+    const text = sql.slice(from, to).trim();
+    const start = from + sql.slice(from, to).indexOf(text);
+    const kind = classify(text);
+    const control = /^\s*(begin|commit|rollback|start\s+transaction)\b/i.test(text);
+    const undoable = kind !== "session";
+    return { start, end: start + text.length, sql: text, kind, control, undoable, why: undoable ? undefined : "it controls the transaction the dry run happens in" };
+  });
+}
+
+/** mockParts finds FROM, each JOIN, and WHERE with a regular expression; the real splitter is in Go. */
+function mockParts(sql: string): DebugPart[] {
+  const parts: DebugPart[] = [];
+  const add = (clause: DebugPart["clause"], start: number, end: number, rows: number) =>
+    parts.push({ clause, label: sql.slice(start, end).replace(/\s+/g, " ").trim(), start, end, sql: "SELECT count(*) …", rows, ran: true, ms: 0.8 });
+  const from = /\bfrom\s+/i.exec(sql);
+  if (from) {
+    const re = /\b((?:left|right|inner|full|cross)\s+(?:outer\s+)?)?join\b|\bwhere\b|\bgroup\b|\border\b|\blimit\b|$/gi;
+    re.lastIndex = from.index + from[0].length;
+    let start = from.index + from[0].length;
+    let rows = 5000;
+    let clause: DebugPart["clause"] = "from";
+    for (let m = re.exec(sql); m; m = re.exec(sql)) {
+      add(clause, start, m.index, rows);
+      if (!/join/i.test(m[0])) {
+        if (/where/i.test(m[0])) {
+          const end = /\b(group|order|limit)\b|$/i.exec(sql.slice(m.index + 5));
+          add("where", m.index, m.index + 5 + (end?.index ?? 0), 0);
+        }
+        break;
+      }
+      start = m.index;
+      clause = "join";
+      rows = Math.round(rows * 2.4);
+      re.lastIndex = m.index + m[0].length;
+    }
+  }
+  parts.push({ clause: "result", label: "Result", start: 0, end: sql.length, sql: "SELECT count(*) FROM (…)", rows: parts.at(-1)?.rows ?? 1, ran: true, ms: 1.1 });
+  return parts;
+}
+
 /** mockPlan is modelled on a real PostgreSQL plan of a join over orders. */
 function mockPlan(analyzed: boolean): ExplainPlan {
   const n = (id: number, op: string, kind: ExplainNode["kind"], x: Partial<ExplainNode>): ExplainNode => ({
@@ -124,6 +166,7 @@ export function createMockBackend(): Backend {
   const audit: AuditEntry[] = [];
   const pageListeners = new Set<(p: Page) => void>();
   const cancelled = new Set<string>();
+  const dryRuns = new Set<string>();
   let editorColors: Record<string, string> = {};
   const files = new Map<string, string>();
   let schemaVersion = 1;
@@ -363,6 +406,41 @@ export function createMockBackend(): Backend {
       await sleep(250);
       if (!sql.trim()) throw new Error("query: no statement to run");
       return mockPlan(classify(sql) === "read");
+    },
+    debugSteps: async (_dialect, sql) => mockSteps(sql),
+    async debugParts(_connId, sql) {
+      await sleep(300);
+      if (classify(sql) !== "read") throw new Error("debug: only a SELECT can be split into parts");
+      return { parts: mockParts(sql), note: "Each part was counted in a read-only transaction that was rolled back (mock).", timedOut: false };
+    },
+    async dryRun({ requestId, connId, sql, confirmWrite }) {
+      const steps = mockSteps(sql);
+      if (steps.length === 0) throw new Error("debug: no statement to run");
+      const conn = conns.find((c) => c.id === connId);
+      if (conn?.env === "prod" && !confirmWrite && steps.some((s) => s.kind !== "read")) {
+        throw new Error("query: writes on a production connection need confirmation");
+      }
+      const bad = steps.findIndex((s) => !s.undoable);
+      if (bad >= 0) throw new Error(`debug: a dry run cannot undo this statement: statement ${bad + 1}: ${steps[bad]?.why ?? ""}`);
+      dryRuns.add(requestId);
+      await sleep(600);
+      const cancelled = !dryRuns.delete(requestId);
+      return {
+        statements: steps.map((s, i) => {
+          const read = s.kind === "read";
+          return {
+            ...s, ran: !cancelled, ms: 1.5 + i, truncated: false,
+            rowsAffected: read ? -1 : 3, rowCount: read ? 2 : 0,
+            columns: read ? [{ name: "id", type: "int4", nullable: false }, { name: "status", type: "text", nullable: true }] : undefined,
+            rows: read ? [[1, "open"], [2, "paid"]] : undefined,
+          };
+        }),
+        rolledBack: true, timedOut: false, cancelled, ms: 4.2,
+        note: "Ran in a transaction that was rolled back: nothing it changed was kept (mock).",
+      };
+    },
+    async cancelDebug(requestId) {
+      if (!dryRuns.delete(requestId)) throw new Error("query: no running request with this ID");
     },
     async refreshSchema(connId) {
       schemaVersion++;

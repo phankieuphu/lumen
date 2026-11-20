@@ -61,6 +61,13 @@ const paths = {
     </>
   ),
   sparkle: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />,
+  bug: (
+    <>
+      <rect x="8" y="7" width="8" height="12" rx="4" />
+      <path d="M12 11v8M9 4l1.5 3M15 4l-1.5 3M4 13h4M16 13h4M5 8l3 2M19 8l-3 2M5 19l3-2M19 19l-3-2" />
+    </>
+  ),
+  step: <path d="M5 5v14M9 12h10M15 8l4 4-4 4" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof paths;

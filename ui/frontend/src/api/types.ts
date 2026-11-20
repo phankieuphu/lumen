@@ -165,6 +165,75 @@ export interface ExplainPlan {
   truncated: boolean;
 }
 
+/** Mirrors internal/debug.Step: one statement of a script, offsets in string indexes. */
+export interface DebugStep {
+  start: number;
+  end: number;
+  sql: string;
+  kind: Kind;
+  /** Starts or ends a transaction; stepping through skips it. */
+  control: boolean;
+  /** A dry run can take it; why says why not. */
+  undoable: boolean;
+  why?: string;
+}
+
+export type PartClause = "cte" | "from" | "join" | "where" | "group" | "having" | "branch" | "result";
+
+/** Mirrors internal/debug.Part: one step of a query with the rows it gives. */
+export interface DebugPart {
+  clause: PartClause;
+  label: string;
+  /** Offsets of the part in the query that was split, in string indexes. */
+  start: number;
+  end: number;
+  /** The count that ran. */
+  sql: string;
+  rows: number;
+  ran: boolean;
+  ms: number;
+  error?: string;
+}
+
+export interface PartsReport {
+  parts: DebugPart[];
+  note: string;
+  timedOut: boolean;
+}
+
+export interface DryRunInput {
+  requestId: string;
+  connId: string;
+  sql: string;
+  confirmWrite: boolean;
+  timeoutMs: number;
+  previewRows: number;
+}
+
+/** Mirrors internal/debug.Ran: what one statement of a dry run did. */
+export interface DryRunStatement extends DebugStep {
+  ran: boolean;
+  /** Rows changed, or -1 if unknown. */
+  rowsAffected: number;
+  columns?: Column[];
+  /** The first rows returned; rowCount counts them all. */
+  rows?: Row[];
+  rowCount: number;
+  truncated: boolean;
+  ms: number;
+  error?: string;
+}
+
+export interface DryRunResult {
+  statements: DryRunStatement[];
+  /** Nothing the run did was kept. */
+  rolledBack: boolean;
+  timedOut: boolean;
+  cancelled: boolean;
+  note: string;
+  ms: number;
+}
+
 /** Mirrors internal/locks. */
 export interface Lock {
   type: "table" | "row" | "transaction" | "metadata" | "advisory" | "other";
@@ -449,6 +518,14 @@ export interface Backend {
   schema(connId: string): Promise<DbSchema>;
   /** The plan of one statement: reads run with EXPLAIN ANALYZE (rolled back), others are planned only. */
   explain(connId: string, sql: string): Promise<ExplainPlan>;
+  /** The statements of a script, for stepping through and dry runs. Does not connect. */
+  debugSteps(dialect: Dialect, sql: string): Promise<DebugStep[]>;
+  /** Splits one SELECT into its parts and counts each one's rows, read-only. */
+  debugParts(connId: string, sql: string): Promise<PartsReport>;
+  /** Runs a script in a transaction that is always rolled back. */
+  dryRun(input: DryRunInput): Promise<DryRunResult>;
+  /** Stops a running dry run. */
+  cancelDebug(requestId: string): Promise<void>;
   /** Reads the schema again, e.g. after DDL run outside lumen. */
   refreshSchema(connId: string): Promise<DbSchema>;
   /** Subscribes to schema changes (DDL, end of a transaction); returns an unsubscribe function. */

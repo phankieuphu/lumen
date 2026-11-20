@@ -133,6 +133,8 @@ export interface RunTarget {
   cursor: number;
   /** The selected text, when there is a selection. */
   selection?: string;
+  /** Where the selection starts in text. */
+  selectionFrom?: number;
 }
 
 export interface EditorHandle {
@@ -166,7 +168,9 @@ interface Props {
 function currentTarget(view: EditorView): RunTarget {
   const { from, to, head } = view.state.selection.main;
   const text = view.state.doc.toString();
-  return from === to ? { text, cursor: head } : { text, cursor: head, selection: view.state.sliceDoc(from, to) };
+  return from === to
+    ? { text, cursor: head }
+    : { text, cursor: head, selection: view.state.sliceDoc(from, to), selectionFrom: from };
 }
 
 // The flash highlight: set with a range, cleared with null.
