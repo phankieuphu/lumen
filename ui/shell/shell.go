@@ -1,6 +1,6 @@
-// Package shell hosts the desktop window. It is the only package allowed to
+// Package shell hosts the desktop windows. It is the only package allowed to
 // import Wails: it serves the built frontend, binds app.API to it, and
-// implements app.Emitter with Wails events.
+// implements app.Emitter, app.Windows, and app.FilePicker with Wails.
 package shell
 
 import (
@@ -44,7 +44,8 @@ var background = application.NewRGB(0x12, 0x15, 0x1a)
 // the Linux application id (scripts/package.sh, assets/linux).
 const appID = "io.github.phankieuphu.lumen"
 
-// Run opens the window and blocks until it closes or ctx is cancelled.
+// Run opens the first window and blocks until the last one closes or ctx is
+// cancelled.
 func Run(ctx context.Context, a *app.App, log *slog.Logger) error {
 	assets, err := fs.Sub(dist, "dist")
 	if err != nil {
@@ -65,11 +66,11 @@ func Run(ctx context.Context, a *app.App, log *slog.Logger) error {
 		// Runs on the main thread, where a dialog cannot be waited for: the
 		// quit is held while the guard asks, and repeated if the user agrees.
 		ShouldQuit: func() bool {
-			if g.settled() {
+			if g.quitSettled() {
 				return true
 			}
 			go func() {
-				if g.confirm() {
+				if g.confirmQuit() {
 					g.app.Quit()
 				}
 			}()
@@ -80,24 +81,11 @@ func Run(ctx context.Context, a *app.App, log *slog.Logger) error {
 		Linux: application.LinuxOptions{ApplicationID: appID},
 	})
 	a.SetEmitter(emitter{w})
+	a.SetFilePicker(picker{app: w})
 	g.app = w
-
-	win := w.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "lumen",
-		Width:            width,
-		Height:           height,
-		MinWidth:         minWidth,
-		MinHeight:        minHeight,
-		BackgroundColour: background,
-		URL:              "/",
-	})
-	a.SetFilePicker(picker{app: w, win: win})
-	// Window hooks run off the main thread, so the dialog can be waited for.
-	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-		if !g.confirm() {
-			e.Cancel()
-		}
-	})
+	ws := &windows{app: w, lumen: a, g: g}
+	a.SetWindows(ws)
+	ws.open()
 
 	// Quit on SIGINT/SIGTERM. The goroutine ends when Run returns, whichever
 	// way the app stops.
@@ -158,19 +146,75 @@ func (m minLevel) WithGroup(name string) slog.Handler {
 	return minLevel{h: m.h.WithGroup(name), min: m.min}
 }
 
-// picker shows native file dialogs, as sheets on the window on macOS.
-type picker struct {
-	app *application.App
-	win *application.WebviewWindow
+// callerWindow returns the window whose bound call carries ctx, or nil.
+func callerWindow(ctx context.Context) application.Window {
+	w, _ := ctx.Value(application.WindowKey).(application.Window)
+	return w
 }
 
-func (p picker) SaveFile(title, filename string) (string, error) {
+// windows opens UI windows and tells the app which one a call came from.
+// Each window is a separate UI over the one app.App.
+type windows struct {
+	app   *application.App
+	lumen *app.App
+	g     *guard
+}
+
+func (ws *windows) Caller(ctx context.Context) app.WindowID {
+	if w := callerWindow(ctx); w != nil {
+		return app.WindowID(w.ID())
+	}
+	return 0
+}
+
+func (ws *windows) Open(context.Context) error {
+	ws.open()
+	return nil
+}
+
+// open opens a window with the full UI, which asks before closing while its
+// SQL file has unsaved changes.
+func (ws *windows) open() {
+	win := ws.app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:            "lumen",
+		Width:            width,
+		Height:           height,
+		MinWidth:         minWidth,
+		MinHeight:        minHeight,
+		BackgroundColour: background,
+		URL:              "/",
+	})
+	id := app.WindowID(win.ID())
+	// Window hooks run off the main thread, so the dialog can be waited for.
+	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		if !ws.g.confirmClose(win) {
+			e.Cancel()
+		}
+	})
+	// Listeners run only once no hook cancelled the close.
+	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { ws.lumen.WindowClosed(id) })
+}
+
+// picker shows native file dialogs, as sheets on the window that asked on
+// macOS.
+type picker struct{ app *application.App }
+
+// window is the window a dialog for ctx's call attaches to: the caller, or
+// the focused window. It may be nil, and the dialog then stands alone.
+func (p picker) window(ctx context.Context) application.Window {
+	if w := callerWindow(ctx); w != nil {
+		return w
+	}
+	return p.app.Window.Current()
+}
+
+func (p picker) SaveFile(ctx context.Context, title, filename string) (string, error) {
 	path, err := p.app.Dialog.SaveFile().
 		SetMessage(title).
 		SetFilename(filename).
 		AddFilter("SQL files", "*.sql").
 		CanCreateDirectories(true).
-		AttachToWindow(p.win).
+		AttachToWindow(p.window(ctx)).
 		PromptForSingleSelection()
 	if err != nil {
 		return "", fmt.Errorf("shell: save dialog: %w", err)
@@ -178,13 +222,13 @@ func (p picker) SaveFile(title, filename string) (string, error) {
 	return path, nil
 }
 
-func (p picker) OpenFile(title string) (string, error) {
+func (p picker) OpenFile(ctx context.Context, title string) (string, error) {
 	path, err := p.app.Dialog.OpenFile().
 		SetTitle(title).
 		CanChooseFiles(true).
 		AddFilter("SQL files", "*.sql").
 		AddFilter("All files", "*").
-		AttachToWindow(p.win).
+		AttachToWindow(p.window(ctx)).
 		PromptForSingleSelection()
 	if err != nil {
 		return "", fmt.Errorf("shell: open dialog: %w", err)
@@ -192,41 +236,89 @@ func (p picker) OpenFile(title string) (string, error) {
 	return path, nil
 }
 
-// guard asks before the window closes or the app quits while the editor's
-// SQL file has unsaved changes. Once the user chooses to discard them, it
-// does not ask again.
-type guard struct {
-	app     *application.App
-	lumen   *app.App
-	discard atomic.Bool
+// unsavedState is what the guard reads: app.App's per-window record of
+// unsaved SQL files.
+type unsavedState interface {
+	Unsaved(w app.WindowID) bool
+	AnyUnsaved() bool
+	ForgetWindow(w app.WindowID)
 }
 
-// settled reports whether closing needs no question.
-func (g *guard) settled() bool { return g.discard.Load() || !g.lumen.Unsaved() }
+// guard asks before a window closes while its SQL file has unsaved changes,
+// and before the app quits while any window's has. Discarding one window's
+// changes does not discard another's; once the user agrees to quit, nothing
+// asks again.
+type guard struct {
+	app      *application.App
+	lumen    unsavedState
+	quitting atomic.Bool
+}
 
-// confirm asks, unless settled, and blocks until the user answers. Never call
-// it on the main thread: the dialog runs there.
-func (g *guard) confirm() bool {
-	if g.settled() {
+// closeSettled reports whether closing window w needs no question.
+func (g *guard) closeSettled(w app.WindowID) bool { return g.quitting.Load() || !g.lumen.Unsaved(w) }
+
+// quitSettled reports whether quitting needs no question.
+func (g *guard) quitSettled() bool { return g.quitting.Load() || !g.lumen.AnyUnsaved() }
+
+// confirmClose asks, unless settled, whether to close win and lose its
+// changes, and blocks until the user answers. Never call it on the main
+// thread: the dialog runs there.
+func (g *guard) confirmClose(win application.Window) bool {
+	id := app.WindowID(win.ID())
+	if g.closeSettled(id) {
 		return true
 	}
+	if !g.ask(win, "Your changes to the SQL file in this window will be lost if you don't save them.") {
+		return false
+	}
+	g.lumen.ForgetWindow(id)
+	return true
+}
+
+// confirmQuit asks, unless settled, whether to quit and lose every window's
+// changes. Like confirmClose, never call it on the main thread.
+func (g *guard) confirmQuit() bool {
+	if g.quitSettled() {
+		return true
+	}
+	if !g.ask(nil, "A window has changes to its SQL file that will be lost if you don't save them.") {
+		return false
+	}
+	g.quitting.Store(true)
+	return true
+}
+
+// ask shows the warning, on win when it is not nil, and reports whether the
+// user chose to discard.
+func (g *guard) ask(win application.Window, message string) bool {
 	answer := make(chan bool, 1)
 	d := g.app.Dialog.Warning().
 		SetTitle("Unsaved SQL changes").
-		SetMessage("Your changes to the SQL file will be lost if you don't save them.")
+		SetMessage(message)
+	if win != nil {
+		d.AttachToWindow(win)
+	}
 	d.AddButton("Discard changes").OnClick(func() { answer <- true })
 	keep := d.AddButton("Cancel").OnClick(func() { answer <- false })
 	d.SetDefaultButton(keep)
 	d.SetCancelButton(keep)
 	d.Show()
-	if <-answer {
-		g.discard.Store(true)
-		return true
-	}
-	return false
+	return <-answer
 }
 
-// emitter sends app events to the window as Wails events.
+// emitter sends app events to the windows as Wails events.
 type emitter struct{ w *application.App }
 
 func (e emitter) Emit(event string, data any) { e.w.Event.Emit(event, data) }
+
+// EmitTo sends to one window only, so other windows do not decode its query
+// pages. An event for a window that has closed is dropped.
+func (e emitter) EmitTo(w app.WindowID, event string, data any) {
+	if w == 0 {
+		e.Emit(event, data)
+		return
+	}
+	if win, ok := e.w.Window.GetByID(uint(w)); ok {
+		win.DispatchWailsEvent(&application.CustomEvent{Name: event, Data: data})
+	}
+}

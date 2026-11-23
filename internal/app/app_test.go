@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/phankieuphu/lumen/internal/explain"
 	"github.com/phankieuphu/lumen/internal/query"
@@ -21,16 +23,98 @@ import (
 	"github.com/phankieuphu/lumen/internal/secret"
 )
 
+// recorder keeps the query pages sent to one window, and counts any that
+// went to every window.
 type recorder struct {
-	mu     sync.Mutex
-	events []json.RawMessage
+	mu        sync.Mutex
+	events    []json.RawMessage
+	wins      []WindowID
+	broadcast int
 }
 
-func (r *recorder) Emit(event string, data any) {
+func (r *recorder) Emit(event string, _ any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if event == EventQueryPage {
+		r.broadcast++
+	}
+}
+
+func (r *recorder) EmitTo(w WindowID, event string, data any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if event == EventQueryPage {
 		r.events = append(r.events, data.(json.RawMessage))
+		r.wins = append(r.wins, w)
+	}
+}
+
+func TestWindowClosedCancelsItsQuery(t *testing.T) {
+	a := openTestApp(t)
+	a.SetWindows(fakeWindows{})
+	ctx := inWindow(t.Context(), 5)
+	pw := "unused"
+	c, err := a.CreateConnection(ctx, ConnectionInput{
+		Name: "local", Dialect: "sqlite", Database: filepath.Join(t.TempDir(), "data.db"), Password: &pw,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Counts forever, until cancelled.
+	endless := "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
+	done := make(chan SummaryDTO, 1)
+	go func() {
+		sum, _ := a.RunQuery(ctx, RunInput{RequestID: "endless", ConnID: c.ID, SQL: endless})
+		done <- sum
+	}()
+	// The query is running once the runner knows its request.
+	for !slices.Contains(a.runner.Running(), "endless") {
+		time.Sleep(5 * time.Millisecond)
+	}
+	a.WindowClosed(6) // another window
+	select {
+	case <-done:
+		t.Fatal("closing another window stopped the query")
+	case <-time.After(50 * time.Millisecond):
+	}
+	a.WindowClosed(5)
+	select {
+	case sum := <-done:
+		if sum.Status == "ok" {
+			t.Fatalf("summary = %+v, want the query stopped", sum)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the query outlived its window")
+	}
+	// A late call from the closed window stops at once.
+	if sum, _ := a.RunQuery(ctx, RunInput{RequestID: "late", ConnID: c.ID, SQL: endless}); sum.Status == "ok" {
+		t.Fatalf("late summary = %+v, want the query stopped", sum)
+	}
+}
+
+func TestQueryPagesGoToCallingWindow(t *testing.T) {
+	a := openTestApp(t)
+	a.SetWindows(fakeWindows{})
+	rec := &recorder{}
+	a.SetEmitter(rec)
+	ctx := inWindow(t.Context(), 7)
+	pw := "unused"
+	c, err := a.CreateConnection(ctx, ConnectionInput{
+		Name: "local", Dialect: "sqlite", Database: filepath.Join(t.TempDir(), "data.db"), Password: &pw,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.RunQuery(ctx, RunInput{RequestID: "sel", ConnID: c.ID, SQL: "SELECT 1 UNION ALL SELECT 2"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.wins) == 0 || rec.broadcast != 0 {
+		t.Fatalf("pages to windows %v, %d to every window", rec.wins, rec.broadcast)
+	}
+	for _, w := range rec.wins {
+		if w != 7 {
+			t.Fatalf("a page went to window %d, want 7", w)
+		}
 	}
 }
 
@@ -229,6 +313,9 @@ func (s *schemaEvents) Emit(event string, data any) {
 	defer s.mu.Unlock()
 	s.n[data.(SchemaChangedDTO).ConnID]++
 }
+
+// EmitTo ignores events for one window: schema changes go to every window.
+func (s *schemaEvents) EmitTo(WindowID, string, any) {}
 
 func (s *schemaEvents) count(id string) int {
 	s.mu.Lock()

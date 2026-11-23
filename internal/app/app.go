@@ -43,7 +43,10 @@ const (
 
 // Emitter sends events to the UI. The shell implements it.
 type Emitter interface {
+	// Emit sends to every window.
 	Emit(event string, data any)
+	// EmitTo sends to window w only, or to every window when w is 0.
+	EmitTo(w WindowID, event string, data any)
 }
 
 // Config configures App. Zero values select defaults.
@@ -70,7 +73,8 @@ type App struct {
 	emitter   Emitter
 	picker    FilePicker
 	picked    pickedFiles
-	unsaved   unsavedFlag
+	windows   Windows
+	wins      windowState
 	sessionID int64
 }
 
@@ -101,6 +105,7 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 		history: query.NewHistory(st),
 		emitter: nopEmitter{},
 		picker:  noPicker{},
+		windows: noWindows{},
 	}
 	a.runner = query.NewRunner(a.conns, a.audit, a.history, cfg.Logger)
 	a.schemas = schema.NewCache(a.loadSchema, 0)
@@ -136,16 +141,21 @@ type nopEmitter struct{}
 
 func (nopEmitter) Emit(string, any) {}
 
-// RunQuery runs one statement. Rows arrive as EventQueryPage events with a
-// PageDTO payload; the returned summary arrives after the last page.
+func (nopEmitter) EmitTo(WindowID, string, any) {}
+
+// RunQuery runs one statement. Rows arrive at the calling window as
+// EventQueryPage events with a PageDTO payload; the returned summary arrives after the last page.
 func (a *App) RunQuery(ctx context.Context, in RunInput) (SummaryDTO, error) {
+	// Only the window that ran the query shows its rows.
+	ctx, win, done := a.windowScoped(ctx)
+	defer done()
 	sum, err := a.runner.Run(ctx, in.request(), func(_ context.Context, p query.Page) error {
 		// Marshal now: the runner reuses the row buffer after we return.
 		b, err := json.Marshal(pageDTO(p))
 		if err != nil {
 			return fmt.Errorf("app: encode page: %w", err)
 		}
-		a.emitter.Emit(EventQueryPage, json.RawMessage(b))
+		a.emitter.EmitTo(win, EventQueryPage, json.RawMessage(b))
 		return nil
 	})
 	if sum.Kind == query.KindSchema || sum.TxEnd != "" {
@@ -355,6 +365,8 @@ func (a *App) txConn(txID string) string {
 // writes and anything else are planned but not run. The time limit is
 // explain.DefaultTimeout.
 func (a *App) Explain(ctx context.Context, connID, sql string) (explain.Plan, error) {
+	ctx, _, done := a.windowScoped(ctx)
+	defer done()
 	c, p, err := a.conns.Get(ctx, connID)
 	if err != nil {
 		return explain.Plan{}, err

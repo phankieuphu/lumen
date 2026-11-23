@@ -44,6 +44,8 @@ func (a *App) DebugSteps(dialect, sql string) []debug.Step {
 // DebugParts splits sql, one SELECT, into its parts and counts each one's
 // rows in read-only transactions. Offsets are UTF-16 code units.
 func (a *App) DebugParts(ctx context.Context, connID, sql string) (debug.Report, error) {
+	ctx, _, done := a.windowScoped(ctx)
+	defer done()
 	c, p, err := a.conns.Get(ctx, connID)
 	if err != nil {
 		return debug.Report{}, err
@@ -69,6 +71,8 @@ func (a *App) DebugParts(ctx context.Context, connID, sql string) (debug.Report,
 // production only once confirmed. Each write that ran is audited as rolled
 // back. Offsets are UTF-16 code units.
 func (a *App) DryRun(ctx context.Context, in DryRunInput) (debug.DryRunResult, error) {
+	ctx, _, done := a.windowScoped(ctx)
+	defer done()
 	if in.RequestID == "" || in.ConnID == "" {
 		return debug.DryRunResult{}, fmt.Errorf("%w: requestId and connId are required", query.ErrBadRequest)
 	}
