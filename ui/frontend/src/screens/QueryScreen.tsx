@@ -63,7 +63,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
       // Counters, or a transaction a failed statement ended.
       void txn.refresh();
     },
-    tx?.id,
+    txn.current,
   );
   // The selection, or the statement at the cursor when the editor holds
   // several, which flashes. If splitting fails, the whole text goes and the

@@ -37,6 +37,19 @@ export function useTransaction(connId: string) {
     }
   }, [backend, connId]);
 
+  /**
+   * current asks the backend for the open transaction's ID just before a
+   * statement runs. Another tab or window may have begun one that this
+   * screen has not heard of yet, and a statement sent without it would run,
+   * and commit, outside it. It rejects when the backend cannot say.
+   */
+  const current = useCallback(async () => {
+    const asked = connId;
+    const open = (await backend.transactions()).find((t) => t.connId === asked);
+    if (conn.current === asked) setTx(open);
+    return open?.id;
+  }, [backend, connId]);
+
   useEffect(() => {
     setTx(undefined);
     setError(undefined);
@@ -100,6 +113,7 @@ export function useTransaction(connId: string) {
     commit: useCallback(() => end("commit"), [end]),
     rollback: useCallback(() => end("rollback"), [end]),
     refresh,
+    current,
     ended,
     dismiss: useCallback(() => {
       setNotice(undefined);
