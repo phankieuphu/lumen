@@ -24,13 +24,14 @@ const PAGE_SIZE = 500;
  * into a ResultStore. Only the current request may touch the store or the
  * state; a request that was cancelled or superseded is ignored. onFinish is
  * called after every request, whatever its outcome, with the summary when
- * there is one. With txId set, statements run inside that transaction.
+ * there is one. txId is asked for the open transaction as each statement
+ * starts, so the statement runs inside it; if it rejects, nothing runs.
  *
  * Pages arrive as events, apart from the call's result, so the last ones can
  * land after runQuery resolves. The store therefore keeps taking pages for
  * the request it shows until the next run replaces it.
  */
-export function useQueryRunner(connId: string, onFinish?: (summary?: Summary) => void, txId?: string) {
+export function useQueryRunner(connId: string, onFinish?: (summary?: Summary) => void, txId?: () => Promise<string | undefined>) {
   const backend = useBackend();
   const store = useMemo(() => new ResultStore(), []);
   const [state, setState] = useState<RunState>({ phase: "idle" });
@@ -60,7 +61,8 @@ export function useQueryRunner(connId: string, onFinish?: (summary?: Summary) =>
       setState({ phase: "running" });
       let summary: Summary | undefined;
       try {
-        summary = await backend.runQuery({ requestId, connId, sql, pageSize: PAGE_SIZE, confirmWrite, txId });
+        const tx = await txId?.();
+        summary = await backend.runQuery({ requestId, connId, sql, pageSize: PAGE_SIZE, confirmWrite, txId: tx });
         if (current()) setState({ phase: "done", summary, sql, finishedAt: new Date() });
       } catch (err) {
         if (current()) {

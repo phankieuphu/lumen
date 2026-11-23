@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 
 import { type Connection, useBackend } from "./api";
 import { Icon, type IconName } from "./components/icons";
-import type { EditorHandle } from "./components/SqlEditor";
 import { ErrorText } from "./components/ui";
 import { useAsync } from "./hooks/useAsync";
 import { useEditorColors } from "./hooks/useEditorColors";
@@ -13,7 +12,7 @@ import { ConnectionsScreen } from "./screens/ConnectionsScreen";
 import { EditorColorsScreen } from "./screens/EditorColorsScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { MonitorScreen } from "./screens/MonitorScreen";
-import { QueryScreen } from "./screens/QueryScreen";
+import { isNewTabKey, QueryTabs, type QueryTabsHandle } from "./screens/QueryTabs";
 import { SettingsScreen } from "./screens/SettingsScreen";
 
 // React Flow and dagre load only when the diagram is first opened.
@@ -46,7 +45,7 @@ export function App() {
   // The connection open in the connections screen; NEW for a new one.
   const [editingId, setEditingId] = useState<string>();
   const [historyVersion, setHistoryVersion] = useState(0);
-  const editor = useRef<EditorHandle>(null);
+  const tabs = useRef<QueryTabsHandle>(null);
   // Loaded and applied here, so every editor shows the saved colours.
   const editorColors = useEditorColors();
 
@@ -63,10 +62,24 @@ export function App() {
   const openInEditor = useCallback((sql: string, connId?: string) => {
     if (connId) setSelectedId(connId);
     setView("query");
-    editor.current?.setText(sql);
+    const editor = tabs.current?.editor();
+    editor?.setText(sql);
     // The editor is hidden until this render commits.
-    requestAnimationFrame(() => editor.current?.focus());
+    requestAnimationFrame(() => editor?.focus());
   }, []);
+
+  // Mod-N opens a new query tab from any view, unless a dialog is open.
+  const hasConn = !!conn;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isNewTabKey(e) || !hasConn || document.querySelector("dialog[open]")) return;
+      e.preventDefault();
+      setView("query");
+      tabs.current?.newTab();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hasConn]);
 
   const newConnection = () => {
     setEditingId(NEW);
@@ -109,7 +122,7 @@ export function App() {
           <main className="workspace-main">
             {conn && (
               <div className="fill" hidden={view !== "query"}>
-                <QueryScreen conn={conn} editorRef={editor} onRan={bumpHistory} />
+                <QueryTabs ref={tabs} conn={conn} onRan={bumpHistory} />
               </div>
             )}
             {conn && view === "history" && (
