@@ -5,7 +5,7 @@
 | Package | Job | Depends on |
 | --- | --- | --- |
 | `cmd/lumen` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
-| `ui/shell` | The only Wails import; opens the window, serves the embedded UI, binds `app.API`, and emits events | `app` |
+| `ui/shell` | The only Wails import; opens a window at start and per New window, serves the embedded UI, binds `app.API`, attaches dialogs to the window that asked, and emits events | `app` |
 | `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `advisor`, `explain`, `locks`, `debug`, `sqlparse`, `lint`, `store` |
 | `internal/query` | Run / cancel by request ID, page streaming, classifier | `conn`, `audit`, `store`, `driver`, `locks` |
 | `internal/conn` | Connection profiles, pool cache, read-only, env tags | `driver`, `store`, `secret` |
@@ -113,7 +113,10 @@ interval owned by an effect, which stops it on pause, on another connection,
 and on unmount.
 
 The UI calls `app.App` methods through `Call.ByName` and receives rows as
-`query:page` events. `npm run dev:mock` (or `make ui-dev`) runs it in a
+`query:page` events, sent only to the window that ran the query; other events
+go to every window. Each window is a separate UI over the one backend, so
+connections and open transactions are shared, and a window re-reads them when
+it gains focus. `npm run dev:mock` (or `make ui-dev`) runs it in a
 browser on an in-memory backend that is left out of production builds.
 
 Rules the UI follows:
