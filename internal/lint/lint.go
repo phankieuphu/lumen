@@ -37,6 +37,12 @@ type Context struct {
 	Dialect driver.Dialect
 	// Prod marks a production connection.
 	Prod bool
+	// ReadOnly marks a read-only connection; with IsWrite set, L202 marks
+	// the statements it would refuse.
+	ReadOnly bool
+	// IsWrite reports whether the query classifier counts one statement as
+	// a write, so L202 agrees with what read-only mode refuses.
+	IsWrite func(stmt string) bool
 }
 
 // MaxFindings caps the findings of one check.
@@ -48,13 +54,12 @@ const DeepOffset = 10_000
 // Check runs every rule on src. Statements that do not parse are skipped;
 // sqlparse.Check reports their syntax errors.
 func Check(src string, ctx Context) []Finding {
-	stmts, err := sqlparse.Parse(src, ctx.Dialect)
-	if err != nil {
-		return nil
-	}
 	l := &linter{src: src, dialect: sqlscan.Dialect(ctx.Dialect), ctx: ctx}
-	for i := range stmts {
-		l.stmt(&stmts[i])
+	l.readOnly()
+	if stmts, err := sqlparse.Parse(src, ctx.Dialect); err == nil {
+		for i := range stmts {
+			l.stmt(&stmts[i])
+		}
 	}
 	slices.SortStableFunc(l.out, func(a, b Finding) int { return a.Start - b.Start })
 	if len(l.out) > MaxFindings {
@@ -68,6 +73,8 @@ type linter struct {
 	dialect sqlscan.Dialect
 	ctx     Context
 	out     []Finding
+	// refused holds the starts of the statements L202 marked.
+	refused map[int]bool
 }
 
 func (l *linter) add(rule string, sev Severity, start, end int, msg string) {
@@ -97,6 +104,23 @@ func (l *linter) word(p, limit int, words ...string) (int, int, bool) {
 	}
 }
 
+// readOnly marks the statements a read-only connection refuses (L202). It
+// reads every statement, parsed or not, as the query runner does.
+func (l *linter) readOnly() {
+	if !l.ctx.ReadOnly || l.ctx.IsWrite == nil {
+		return
+	}
+	l.refused = map[int]bool{}
+	for _, st := range sqlscan.Split(l.src, l.dialect) {
+		if l.ctx.IsWrite(st.Text) {
+			l.refused[st.Start] = true
+			start, end := l.token(st.Start)
+			l.add("L202", Error, start, end,
+				"This connection is read-only, so "+st.Tokens[0].Upper()+" will be refused. Use a connection that allows writes.")
+		}
+	}
+}
+
 func (l *linter) stmt(st *sqlparse.Stmt) {
 	verbEnd := st.Start + len(st.Verb)
 	switch st.Kind {
@@ -104,6 +128,9 @@ func (l *linter) stmt(st *sqlparse.Stmt) {
 		if st.Where == nil {
 			l.add("L001", Error, st.Start, verbEnd,
 				st.Verb+" without WHERE changes every row in the table. Add a WHERE clause, or WHERE true if you mean it.")
+		} else if start, end, ok := l.mixedAndOr(st); ok {
+			l.add("L007", Error, start, end,
+				"AND binds tighter than OR, so this "+st.Verb+" matches (… AND …) OR …, often far more rows than meant. Add parentheses to say which you mean.")
 		}
 	case sqlparse.StmtInsert:
 		if !st.Columns && (st.Select != nil || len(st.Exprs) > 0) {
@@ -111,7 +138,8 @@ func (l *linter) stmt(st *sqlparse.Stmt) {
 				"INSERT without a column list breaks when columns are added or reordered. Name the columns.")
 		}
 	case sqlparse.StmtDDL:
-		if l.ctx.Prod && (st.Verb == "DROP" || st.Verb == "ALTER" || st.Verb == "TRUNCATE") {
+		// A refused statement never reaches the confirmation.
+		if l.ctx.Prod && !l.refused[st.Start] && (st.Verb == "DROP" || st.Verb == "ALTER" || st.Verb == "TRUNCATE") {
 			l.add("L201", Info, st.Start, verbEnd,
 				st.Verb+" on a production connection. It will ask for confirmation and be recorded in the audit log.")
 		}
@@ -122,18 +150,34 @@ func (l *linter) stmt(st *sqlparse.Stmt) {
 		l.exprRules(e)
 	}
 	exists := existsSelects(st)
+	// The SELECT blocks whose rows an INSERT ... SELECT writes.
+	feeds := map[*sqlparse.Select]bool{}
+	if st.Kind == sqlparse.StmtInsert && st.Select != nil {
+		feeds[st.Select] = true
+		for _, s := range st.Select.Set {
+			feeds[s] = true
+		}
+	}
 	st.Selects(func(s *sqlparse.Select) {
-		l.selectRules(st, s, exists[s])
+		l.selectRules(st, s, exists[s], feeds[s])
 	})
 }
 
-func (l *linter) selectRules(st *sqlparse.Stmt, s *sqlparse.Select, inExists bool) {
+func (l *linter) selectRules(st *sqlparse.Stmt, s *sqlparse.Select, inExists, feedsInsert bool) {
 	// EXISTS (SELECT * ...) reads no columns.
 	if !inExists {
 		for _, it := range s.Items {
-			if it.Star {
-				start, end := l.token(it.Pos)
+			if !it.Star {
+				continue
+			}
+			start, end := l.token(it.Pos)
+			// Looking at data with SELECT * is normal in a SQL client; it
+			// breaks things when it feeds an INSERT.
+			if feedsInsert {
 				l.add("L101", Warning, start, end,
+					"INSERT ... SELECT * breaks when either table's columns are added or reordered. Name the columns.")
+			} else {
+				l.add("L101", Info, start, end,
 					"SELECT * reads every column, and the result changes when columns are added. Name the columns you need.")
 			}
 		}
@@ -152,6 +196,11 @@ func (l *linter) selectRules(st *sqlparse.Stmt, s *sqlparse.Select, inExists boo
 			l.add("L104", Warning, start, end,
 				"ORDER BY "+strings.ToUpper(f.Name)+"() sorts the whole table to pick rows. On a large table, pick ids at random instead.")
 		}
+	}
+	if o := s.Offset; o != nil && o.Value != "0" && len(s.OrderBy) == 0 {
+		start, end := l.token(o.Pos)
+		l.add("L006", Warning, start, end,
+			"OFFSET without ORDER BY pages through rows in no set order, so pages can repeat or skip rows. Add an ORDER BY on a unique key.")
 	}
 	if o := s.Offset; o != nil {
 		if n, err := strconv.Atoi(o.Value); err == nil && n > DeepOffset {
@@ -198,6 +247,15 @@ func (l *linter) exprRules(e sqlparse.Expr) {
 				}
 			}
 		case *sqlparse.In:
+			if x.Not {
+				for _, e := range x.List {
+					if lit, ok := e.(*sqlparse.Literal); ok && lit.Kind == sqlparse.LitNull {
+						start, end := l.token(lit.Pos)
+						l.add("L005", Error, start, end,
+							"A NULL in a NOT IN list means no row ever matches: x <> NULL is never true. Remove the NULL.")
+					}
+				}
+			}
 			if x.Not && x.Subquery != nil {
 				start, end, ok := l.word(x.Pos, len(l.src), "IN")
 				if notStart, _, okNot := l.word(x.Pos, start, "NOT"); ok && okNot {
@@ -242,6 +300,66 @@ func (l *linter) indexRules(where sqlparse.Expr) {
 			}
 		}
 	})
+}
+
+// mixedAndOr finds the first OR of an UPDATE or DELETE whose WHERE mixes
+// AND and OR at the top level, outside parentheses. The tree does not keep
+// parentheses, so this reads the tokens.
+func (l *linter) mixedAndOr(st *sqlparse.Stmt) (int, int, bool) {
+	sc := sqlscan.NewScanner(l.src[st.Start:st.End], l.dialect)
+	mysql := l.ctx.Dialect == driver.MySQL
+	depth, cases := 0, 0
+	inWhere, between, and := false, false, false
+	orStart, orEnd := -1, -1
+	var prev sqlscan.Token
+	for {
+		t, ok := sc.Next()
+		if !ok {
+			break
+		}
+		// MySQL also writes AND as && and OR as || or XOR (which binds
+		// between them); the scanner gives one token per character.
+		double := mysql && t.Kind == sqlscan.Punct && prev.Kind == sqlscan.Punct &&
+			prev.Text == t.Text && prev.Pos+1 == t.Pos && (t.Text == "&" || t.Text == "|")
+		isAnd := t.Is("AND") || double && t.Text == "&"
+		isOr := t.Is("OR") || mysql && t.Is("XOR") || double && t.Text == "|"
+		opStart := t.Pos
+		if double {
+			opStart = prev.Pos
+			t.Kind = 0 // a third & or | starts a new pair
+		}
+		prev = t
+		switch {
+		case t.Kind == sqlscan.Punct && t.Text == "(":
+			depth++
+		case t.Kind == sqlscan.Punct && t.Text == ")":
+			depth--
+		case depth > 0:
+		case t.Is("WHERE"):
+			inWhere = true
+		case !inWhere:
+		case t.Is("ORDER"), t.Is("LIMIT"), t.Is("RETURNING"):
+			inWhere = false
+		case t.Is("CASE"):
+			cases++
+		case t.Is("END"):
+			cases--
+		case cases > 0:
+		case t.Is("BETWEEN"):
+			between = true
+		case isAnd:
+			if between {
+				between = false
+			} else {
+				and = true
+			}
+		case isOr:
+			if orStart < 0 {
+				orStart, orEnd = st.Start+opStart, st.Start+t.Pos+len(t.Text)
+			}
+		}
+	}
+	return orStart, orEnd, and && orStart >= 0
 }
 
 func hasColumnArg(f *sqlparse.Func) bool {
