@@ -549,8 +549,10 @@ export interface Backend {
   saveSql(path: string, sql: string): Promise<SavedFile>;
   /** Asks for a SQL file with the native dialog; an empty path when cancelled. */
   openSql(): Promise<OpenedFile>;
-  /** Tells the app the editor's file has unsaved changes, to ask before quitting. */
+  /** Tells the app this window's editor has a file with unsaved changes, to ask before closing or quitting. */
   setUnsaved(unsaved: boolean): Promise<void>;
+  /** Opens another window with the full UI. */
+  newWindow(): Promise<void>;
 
   /** Puts text on the system clipboard. */
   copyText(text: string): Promise<void>;

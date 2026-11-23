@@ -71,6 +71,7 @@ export const wailsBackend: Backend = {
   saveSql: (path, sql) => call("SaveSQL", path, sql),
   openSql: () => call("OpenSQL"),
   setUnsaved: (unsaved) => call("SetUnsaved", unsaved),
+  newWindow: () => call("NewWindow"),
   editorColors: () => call("EditorColors"),
   saveEditorColors: (colors) => call("SaveEditorColors", colors),
 

@@ -8,10 +8,21 @@ import { type FileState, MAC, QueryScreen } from "./QueryScreen";
 
 export const NEW_TAB_KEYS = MAC ? "⌘N" : "Ctrl+N";
 
+export const NEW_WINDOW_KEYS = MAC ? "⇧⌘N" : "Ctrl+Shift+N";
+
 /** isNewTabKey reports whether e is Mod-N: ⌘N on macOS, Ctrl+N elsewhere. */
 export function isNewTabKey(e: KeyboardEvent): boolean {
+  return isModN(e) && !e.shiftKey;
+}
+
+/** isNewWindowKey reports whether e is Shift-Mod-N. */
+export function isNewWindowKey(e: KeyboardEvent): boolean {
+  return isModN(e) && e.shiftKey;
+}
+
+function isModN(e: KeyboardEvent): boolean {
   const mod = MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-  return mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "n";
+  return mod && !e.altKey && e.key.toLowerCase() === "n";
 }
 
 export interface QueryTabsHandle {
@@ -83,6 +94,12 @@ export function QueryTabs({ conn, onRan, ref }: Props) {
     setTxVersion((v) => v + 1);
     onRan();
   }, [onRan]);
+  // So can another window's, which this one hears of when it gains focus.
+  useEffect(() => {
+    const focused = () => setTxVersion((v) => v + 1);
+    window.addEventListener("focus", focused);
+    return () => window.removeEventListener("focus", focused);
+  }, []);
 
   const setFile = useCallback((id: number, file: FileState) => {
     setTabs((ts) => ts.map((t) => (t.id === id ? { ...t, file } : t)));
