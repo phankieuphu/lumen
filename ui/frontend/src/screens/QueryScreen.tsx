@@ -36,6 +36,8 @@ interface Props {
   txVersion?: number;
   /** Called when the file the SQL is saved to, or its unsaved state, changes. */
   onFile?: (state: FileState) => void;
+  /** The connection is gone (another window may have deleted it): the SQL stays, but nothing runs. */
+  offline?: boolean;
 }
 
 /** FileState is what a query tab shows and guards about its SQL file. */
@@ -45,7 +47,7 @@ export interface FileState {
   dirty: boolean;
 }
 
-export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion = 0, onFile }: Props) {
+export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion = 0, onFile, offline = false }: Props) {
   const backend = useBackend();
   const txn = useTransaction(conn.id);
   const { tx } = txn;
@@ -78,6 +80,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
   };
   const [tab, setTab] = useState<"results" | "explain" | "locks" | "debug">("results");
   const runSql = (t: RunTarget) => {
+    if (offline) return;
     txn.dismiss();
     setTab("results");
     void pick(t).then(run);
@@ -86,6 +89,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
   // Only the latest Explain may show its plan.
   const explainSeq = useRef(0);
   const explainSql = (t: RunTarget) => {
+    if (offline) return;
     const seq = ++explainSeq.current;
     setTab("explain");
     setExplained({ phase: "running" });
@@ -106,7 +110,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
     },
   });
   // Each debug action takes the editor's selection, or its statement or text.
-  const onEditor = (fn: (t: RunTarget) => void) => () => editorRef.current && fn(editorRef.current.target());
+  const onEditor = (fn: (t: RunTarget) => void) => () => !offline && editorRef.current && fn(editorRef.current.target());
   const file = useSqlFile(editorRef, onFile);
   const completion = useSchemaCompletion(conn.id);
   // Syntax errors, then lint findings: a statement with a syntax error gets no
@@ -165,7 +169,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
             type="button"
             className="primary run"
             onClick={() => editorRef.current && runSql(editorRef.current.target())}
-            disabled={txn.busy}
+            disabled={txn.busy || offline}
             title={`Run (${RUN_KEYS})`}
           >
             <Icon name="play" size={12} strokeWidth={2} /> Run <kbd>{RUN_KEYS}</kbd>
@@ -173,7 +177,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
         )}
         <TxControls
           tx={tx}
-          disabled={running || txn.busy}
+          disabled={running || txn.busy || offline}
           onBegin={(label) => txAction(() => txn.begin(label))()}
           onCommit={txAction(txn.commit)}
           onRollback={txAction(txn.rollback)}
@@ -181,7 +185,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
         <button
           type="button"
           onClick={() => editorRef.current && explainSql(editorRef.current.target())}
-          disabled={explained.phase === "running"}
+          disabled={explained.phase === "running" || offline}
           title={`Explain how the database runs the statement (${EXPLAIN_KEYS})`}
         >
           <Icon name="plan" size={14} /> Explain
@@ -208,6 +212,11 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
         onChange={file.markDirty}
         completion={completion}
       />
+      {offline && (
+        <Banner tone="warn">
+          The connection {conn.name} was deleted. Your SQL is kept here; add or pick a connection to run it.
+        </Banner>
+      )}
       {file.error && <Banner tone="danger">{file.error}</Banner>}
       {txn.error && <Banner tone="danger">{txn.error}</Banner>}
       {txn.notice && <TxEndBanner notice={txn.notice} />}
@@ -319,6 +328,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
             onStep={debug.runStep}
             onStepAll={debug.runAllSteps}
             onShowRows={(sql) => {
+              if (offline) return;
               setTab("results");
               run(sql);
             }}

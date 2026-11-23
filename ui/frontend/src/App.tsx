@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
-import { type Connection, useBackend } from "./api";
+import { type Connection, errorMessage, useBackend } from "./api";
 import { Icon, type IconName } from "./components/icons";
 import { ErrorText } from "./components/ui";
 import { useAsync } from "./hooks/useAsync";
@@ -12,7 +12,7 @@ import { ConnectionsScreen } from "./screens/ConnectionsScreen";
 import { EditorColorsScreen } from "./screens/EditorColorsScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { MonitorScreen } from "./screens/MonitorScreen";
-import { isNewTabKey, QueryTabs, type QueryTabsHandle } from "./screens/QueryTabs";
+import { isNewTabKey, isNewWindowKey, NEW_WINDOW_KEYS, QueryTabs, type QueryTabsHandle } from "./screens/QueryTabs";
 import { SettingsScreen } from "./screens/SettingsScreen";
 
 // React Flow and dagre load only when the diagram is first opened.
@@ -50,6 +50,12 @@ export function App() {
   const editorColors = useEditorColors();
 
   const conn = connections.find((c) => c.id === selectedId) ?? connections[0];
+  // The query tabs keep the last connection when none is left (another
+  // window may have deleted it), so their unsaved SQL survives until one is
+  // added; meanwhile nothing runs.
+  const lastConn = useRef<Connection>(undefined);
+  if (conn) lastConn.current = conn;
+  const tabsConn = conn ?? lastConn.current;
   // The connection whose diagram was last opened. The diagram stays mounted
   // (hidden) while it is still the current connection, so its filters,
   // selection, zoom, and dragged positions survive switching views.
@@ -68,18 +74,40 @@ export function App() {
     requestAnimationFrame(() => editor?.focus());
   }, []);
 
-  // Mod-N opens a new query tab from any view, unless a dialog is open.
-  const hasConn = !!conn;
+  const [windowError, setWindowError] = useState<string>();
+  const newWindow = useCallback(() => {
+    backend.newWindow().then(
+      () => setWindowError(undefined),
+      (err: unknown) => setWindowError(`New window: ${errorMessage(err)}`),
+    );
+  }, [backend]);
+
+  // Mod-N opens a new query tab from any view, and Shift-Mod-N a new window,
+  // unless a dialog is open.
+  const hasTabs = !!tabsConn;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!isNewTabKey(e) || !hasConn || document.querySelector("dialog[open]")) return;
-      e.preventDefault();
-      setView("query");
-      tabs.current?.newTab();
+      if (document.querySelector("dialog[open]")) return;
+      if (isNewWindowKey(e)) {
+        e.preventDefault();
+        // Holding the keys opens one window, not one per key repeat.
+        if (!e.repeat) newWindow();
+      } else if (isNewTabKey(e) && hasTabs) {
+        e.preventDefault();
+        setView("query");
+        tabs.current?.newTab();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [hasConn]);
+  }, [hasTabs, newWindow]);
+
+  // Another window may have added, changed, or deleted a connection.
+  const reloadConns = conns.reload;
+  useEffect(() => {
+    window.addEventListener("focus", reloadConns);
+    return () => window.removeEventListener("focus", reloadConns);
+  }, [reloadConns]);
 
   const newConnection = () => {
     setEditingId(NEW);
@@ -111,18 +139,20 @@ export function App() {
           <RailItem key={v.id} {...v} current={view === v.id} onClick={() => setView(v.id)} />
         ))}
         <span className="spacer" />
+        <RailItem label={`New window (${NEW_WINDOW_KEYS})`} icon="window" current={false} onClick={newWindow} />
         <RailItem {...colorsView} current={view === "colors"} onClick={() => setView("colors")} />
         <RailItem {...settingsView} current={view === "settings"} onClick={() => setView("settings")} />
       </nav>
       <div className="view">
         <ErrorText error={conns.error} />
+        <ErrorText error={windowError} />
         {/* Hidden rather than unmounted, so the editor text and the last result survive view switches. */}
         <div className="workspace" hidden={!workspace}>
           <ConnectionList connections={connections} selectedId={conn?.id} onSelect={setSelectedId} onNew={newConnection} />
           <main className="workspace-main">
-            {conn && (
+            {tabsConn && (
               <div className="fill" hidden={view !== "query"}>
-                <QueryTabs ref={tabs} conn={conn} onRan={bumpHistory} />
+                <QueryTabs ref={tabs} conn={tabsConn} offline={!conn} onRan={bumpHistory} />
               </div>
             )}
             {conn && view === "history" && (
@@ -135,7 +165,7 @@ export function App() {
                 </Suspense>
               </div>
             )}
-            {!conn && !conns.loading && (
+            {!conn && !conns.loading && !(view === "query" && tabsConn) && (
               <div className="empty-state">
                 <p>Add a connection to start querying.</p>
                 <button type="button" className="primary" onClick={newConnection}>

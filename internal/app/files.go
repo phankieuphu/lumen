@@ -7,18 +7,18 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"unicode/utf8"
 )
 
 // FilePicker asks the user for a file with a native dialog. The shell
 // implements it; the UI never passes a path of its own choosing to a write.
+// ctx is the UI call's, so the dialog can open on the window that asked.
 type FilePicker interface {
 	// SaveFile asks where to save, suggesting filename. It returns "" when
 	// the user cancels.
-	SaveFile(title, filename string) (string, error)
+	SaveFile(ctx context.Context, title, filename string) (string, error)
 	// OpenFile asks for a file to open. It returns "" when the user cancels.
-	OpenFile(title string) (string, error)
+	OpenFile(ctx context.Context, title string) (string, error)
 }
 
 // ErrNotPicked is returned for a save to a file the user did not choose in
@@ -64,11 +64,11 @@ func (p *pickedFiles) has(path string) bool {
 
 type noPicker struct{}
 
-func (noPicker) SaveFile(string, string) (string, error) {
+func (noPicker) SaveFile(context.Context, string, string) (string, error) {
 	return "", errors.New("app: no file dialog available")
 }
 
-func (noPicker) OpenFile(string) (string, error) {
+func (noPicker) OpenFile(context.Context, string) (string, error) {
 	return "", errors.New("app: no file dialog available")
 }
 
@@ -82,7 +82,7 @@ func (a *App) SaveSQLAs(ctx context.Context, filename, sql string) (SavedFileDTO
 	if len(sql) > MaxSQLFileBytes {
 		return SavedFileDTO{}, fmt.Errorf("app: save: SQL is over %d MB", MaxSQLFileBytes>>20)
 	}
-	path, err := a.picker.SaveFile("Save SQL", filepath.Base(filename))
+	path, err := a.picker.SaveFile(ctx, "Save SQL", filepath.Base(filename))
 	if err != nil || path == "" {
 		return SavedFileDTO{}, err
 	}
@@ -111,8 +111,8 @@ func (a *App) SaveSQL(_ context.Context, path, sql string) (SavedFileDTO, error)
 // OpenSQL asks the user for a SQL file and returns its text. The file may
 // then be saved again with SaveSQL. A cancelled dialog returns an empty
 // OpenedFileDTO and no error.
-func (a *App) OpenSQL(_ context.Context) (OpenedFileDTO, error) {
-	path, err := a.picker.OpenFile("Open SQL")
+func (a *App) OpenSQL(ctx context.Context) (OpenedFileDTO, error) {
+	path, err := a.picker.OpenFile(ctx, "Open SQL")
 	if err != nil || path == "" {
 		return OpenedFileDTO{}, err
 	}
@@ -135,15 +135,22 @@ func (a *App) OpenSQL(_ context.Context) (OpenedFileDTO, error) {
 	return OpenedFileDTO{Path: path, Name: filepath.Base(path), SQL: string(b)}, nil
 }
 
-// unsavedFlag is set while the editor has changes to a file not yet saved.
-type unsavedFlag struct{ atomic.Bool }
+// SetUnsaved records whether the calling window's editor has a file with
+// unsaved changes, so the shell can ask before the window closes or the app
+// quits.
+func (a *App) SetUnsaved(ctx context.Context, unsaved bool) {
+	a.wins.setUnsaved(a.windows.Caller(ctx), unsaved)
+}
 
-// SetUnsaved records whether the editor's file has unsaved changes, so the
-// shell can ask before the window closes or the app quits.
-func (a *App) SetUnsaved(_ context.Context, unsaved bool) { a.unsaved.Store(unsaved) }
+// Unsaved reports what window w last passed to SetUnsaved.
+func (a *App) Unsaved(w WindowID) bool { return a.wins.unsaved(w) }
 
-// Unsaved reports what the editor last passed to SetUnsaved.
-func (a *App) Unsaved() bool { return a.unsaved.Load() }
+// AnyUnsaved reports whether any open window has unsaved changes.
+func (a *App) AnyUnsaved() bool { return a.wins.anyUnsaved() }
+
+// ForgetWindow drops what window w reported, once the user chose to discard
+// its changes.
+func (a *App) ForgetWindow(w WindowID) { a.wins.setUnsaved(w, false) }
 
 // writeAtomic writes data to a temporary file next to path and renames it
 // over path.

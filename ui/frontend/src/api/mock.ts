@@ -332,6 +332,8 @@ export function createMockBackend(): Backend {
       return { path, name, sql };
     },
     setUnsaved: async () => {},
+    // A browser tab stands in for a window; it has its own mock data.
+    newWindow: async () => void window.open(location.href, "_blank"),
     editorColors: async () => ({ ...editorColors }),
     async saveEditorColors(colors) {
       editorColors = { ...colors };

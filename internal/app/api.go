@@ -69,6 +69,11 @@ func (p *API) SetUnsaved(ctx context.Context, unsaved bool) {
 	p.a.SetUnsaved(ctx, unsaved)
 }
 
+// NewWindow forwards to App.NewWindow.
+func (p *API) NewWindow(ctx context.Context) error {
+	return p.a.NewWindow(ctx)
+}
+
 // CancelQuery forwards to App.CancelQuery.
 func (p *API) CancelQuery(ctx context.Context, requestID string) error {
 	return p.a.CancelQuery(ctx, requestID)
