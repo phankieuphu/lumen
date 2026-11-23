@@ -508,6 +508,70 @@ button:focus-visible {
 
 /* Query */
 
+.query-tabs {
+  display: flex;
+  align-items: stretch;
+  min-height: 34px;
+  padding: 0 6px;
+  overflow-x: auto;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.query-tab {
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--line-soft);
+  color: var(--muted);
+}
+
+.query-tab[aria-current="true"] {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.query-tab-name {
+  gap: 6px;
+  height: auto;
+  align-self: stretch;
+  padding: 0 6px 0 12px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.query-tab-name:hover:not(:disabled) {
+  background: none;
+  color: var(--fg);
+}
+
+.query-tab-close,
+.query-tab-new {
+  height: 22px;
+  width: 22px;
+  padding: 0;
+  margin-right: 6px;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--faint);
+}
+
+.query-tab-new {
+  align-self: center;
+  margin-left: 4px;
+}
+
+.query-tab-close:hover:not(:disabled),
+.query-tab-new:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--fg);
+}
+
 .query {
   flex: 1;
   display: flex;

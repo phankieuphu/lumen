@@ -18,7 +18,7 @@ import { type TxNotice, useTransaction } from "../hooks/useTransaction";
 import { connTarget, dialectName, formatCount, formatDuration } from "../lib/format";
 import { statementAt } from "../lib/statements";
 
-const MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+export const MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
 const RUN_KEYS = MAC ? "⌘ Enter" : "Ctrl+Enter";
 const SAVE_KEYS = MAC ? "⌘S" : "Ctrl+S";
 const SAVE_AS_KEYS = MAC ? "⇧⌘S" : "Ctrl+Shift+S";
@@ -30,12 +30,31 @@ interface Props {
   editorRef: RefObject<EditorHandle | null>;
   /** Called after each request, e.g. to refresh the history list. */
   onRan: () => void;
+  /** Whether this screen is the one shown, among the query tabs. */
+  active?: boolean;
+  /** Bumped after any tab's request, since that may begin or end the shared transaction. */
+  txVersion?: number;
+  /** Called when the file the SQL is saved to, or its unsaved state, changes. */
+  onFile?: (state: FileState) => void;
 }
 
-export function QueryScreen({ conn, editorRef, onRan }: Props) {
+/** FileState is what a query tab shows and guards about its SQL file. */
+export interface FileState {
+  name?: string;
+  /** Edits since the last open or save. */
+  dirty: boolean;
+}
+
+export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion = 0, onFile }: Props) {
   const backend = useBackend();
   const txn = useTransaction(conn.id);
   const { tx } = txn;
+  // The backend keeps one transaction per connection, shared by every tab;
+  // another tab may have begun or ended it.
+  const { refresh: refreshTx } = txn;
+  useEffect(() => {
+    if (active) void refreshTx();
+  }, [active, txVersion, refreshTx]);
   const { store, state, run, cancel, confirm, dismiss } = useQueryRunner(
     conn.id,
     (summary) => {
@@ -88,7 +107,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
   });
   // Each debug action takes the editor's selection, or its statement or text.
   const onEditor = (fn: (t: RunTarget) => void) => () => editorRef.current && fn(editorRef.current.target());
-  const file = useSqlFile(editorRef);
+  const file = useSqlFile(editorRef, onFile);
   const completion = useSchemaCompletion(conn.id);
   // Syntax errors, then lint findings: a statement with a syntax error gets no
   // lint findings, since it does not parse.
@@ -339,7 +358,8 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           </p>
         </Confirm>
       )}
-      {debug.confirming && (
+      {/* A modal under a hidden tab would block the window unseen; it waits until the tab is shown. */}
+      {active && debug.confirming && (
         <Confirm
           title={debug.confirming.what === "dry" ? "Dry run on production?" : "Write to production?"}
           confirmLabel={debug.confirming.what === "dry" ? "Dry run on production" : "Run on production"}
@@ -356,7 +376,7 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
           <pre className="sql-preview">{debug.confirming.sql}</pre>
         </Confirm>
       )}
-      {state.phase === "confirm" && (
+      {active && state.phase === "confirm" && (
         <Confirm title="Write to production?" confirmLabel="Run on production" danger onConfirm={confirm} onCancel={dismiss}>
           <p>
             <strong>{conn.name}</strong> is a production connection. This statement changes data or schema and will be
@@ -378,10 +398,10 @@ export function QueryScreen({ conn, editorRef, onRan }: Props) {
  * useSqlFile opens and saves the editor text as a file: the first save, and
  * Save As, ask where with the native dialog; later saves go to the same file.
  * dirty is set by edits since the last open or save; opening over unsaved
- * edits asks first. Unsaved changes to a file are reported to the app, which
- * asks before the window closes.
+ * edits asks first. The file and its dirty state are reported through onFile,
+ * so the tabs can name it and the app can ask before the window closes.
  */
-function useSqlFile(editorRef: RefObject<EditorHandle | null>) {
+function useSqlFile(editorRef: RefObject<EditorHandle | null>, onFile?: (state: FileState) => void) {
   const backend = useBackend();
   const [current, setCurrent] = useState<SavedFile>();
   const [dirty, setDirty] = useState(false);
@@ -389,10 +409,11 @@ function useSqlFile(editorRef: RefObject<EditorHandle | null>) {
   const [confirmingOpen, setConfirmingOpen] = useState(false);
   const busy = useRef(false);
 
-  const unsaved = !!current && dirty;
+  const onFileRef = useRef(onFile);
+  onFileRef.current = onFile;
   useEffect(() => {
-    backend.setUnsaved(unsaved).catch(() => {});
-  }, [backend, unsaved]);
+    onFileRef.current?.({ name: current?.name, dirty });
+  }, [current?.name, dirty]);
 
   const save = useCallback(
     async (as: boolean) => {
