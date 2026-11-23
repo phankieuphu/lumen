@@ -9,7 +9,7 @@ import { LocksView } from "../components/LocksView";
 import { ResultDetails } from "../components/ResultDetails";
 import { ResultGrid } from "../components/ResultGrid";
 import { type EditorHandle, type EditorIssue, type RunTarget, SqlEditor } from "../components/SqlEditor";
-import { Banner, Confirm, EnvBadge, EnvDot, KindBadge, StatusBadge, TxTag } from "../components/ui";
+import { Banner, Confirm, EnvBadge, EnvDot, KindBadge, plainText, StatusBadge, TxTag } from "../components/ui";
 import { useDebug } from "../hooks/useDebug";
 import { useQueryRunner } from "../hooks/useQueryRunner";
 import { useSchemaCompletion } from "../hooks/useSchemaCompletion";
@@ -529,6 +529,7 @@ function TxControls({ tx, disabled, onBegin, onCommit, onRollback }: TxControlsP
     return (
       <div className="tx-bar" role="group" aria-label="Begin transaction">
         <input
+          {...plainText}
           className="tx-label-input"
           autoFocus
           value={label}

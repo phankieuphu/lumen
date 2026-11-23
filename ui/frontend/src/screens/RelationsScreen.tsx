@@ -21,7 +21,7 @@ import {
 import { type KeyboardEvent, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { type Connection, type DbSchema, type ForeignKey, type Table, useBackend } from "../api";
-import { ErrorText } from "../components/ui";
+import { ErrorText, plainText } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
 import {
   buildGraph,
@@ -421,6 +421,7 @@ function Diagram({ connId, schema, onOpen, onRefresh, loading }: DiagramProps) {
     <>
       <div className="toolbar erd-toolbar">
         <input
+          {...plainText}
           type="search"
           placeholder="Find table…"
           value={search}
@@ -733,6 +734,7 @@ function FeatureField({ group, value, names, onAssign }: FeatureFieldProps) {
       <label className="small">
         Feature{" "}
         <input
+          {...plainText}
           type="text"
           list="erd-feature-names"
           value={draft}

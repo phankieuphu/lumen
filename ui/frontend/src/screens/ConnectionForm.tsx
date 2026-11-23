@@ -2,7 +2,7 @@ import { type FormEvent, useState } from "react";
 
 import { type Connection, type ConnectionInput, type Dialect, type Env, errorMessage, useBackend } from "../api";
 import { Icon } from "../components/icons";
-import { Banner, Confirm, Field, Segmented, SwitchRow } from "../components/ui";
+import { Banner, Confirm, Field, plainText, Segmented, SwitchRow } from "../components/ui";
 import { dialectName } from "../lib/format";
 
 const defaultPort: Record<Dialect, number> = { postgres: 5432, mysql: 3306, sqlite: 0 };
@@ -113,7 +113,7 @@ export function ConnectionForm({ conn, onSaved, onDeleted, onUse }: Props) {
       <div className="card-body">
         <div className="form-grid">
           <Field label="Name">
-            <input value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={100} autoFocus={!conn} />
+            <input {...plainText} value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={100} autoFocus={!conn} />
           </Field>
           <Field label="Engine">
             <select value={form.dialect} onChange={(e) => setDialect(e.target.value as Dialect)}>
@@ -125,13 +125,13 @@ export function ConnectionForm({ conn, onSaved, onDeleted, onUse }: Props) {
           {network && (
             <>
               <Field label="Host">
-                <input className="mono" value={form.host} onChange={(e) => set("host", e.target.value)} required />
+                <input {...plainText} className="mono" value={form.host} onChange={(e) => set("host", e.target.value)} required />
               </Field>
               <Field label="Port">
                 <input className="mono" type="number" min={0} max={65535} value={form.port} onChange={(e) => set("port", e.target.valueAsNumber || 0)} />
               </Field>
               <Field label="User">
-                <input className="mono" value={form.user} onChange={(e) => set("user", e.target.value)} autoComplete="off" />
+                <input {...plainText} className="mono" value={form.user} onChange={(e) => set("user", e.target.value)} autoComplete="off" />
               </Field>
               <Field label="Password">
                 <input
@@ -149,7 +149,7 @@ export function ConnectionForm({ conn, onSaved, onDeleted, onUse }: Props) {
             </>
           )}
           <Field label={network ? "Database" : "Database file"} wide={!network}>
-            <input className="mono" value={form.database} onChange={(e) => set("database", e.target.value)} required={!network} />
+            <input {...plainText} className="mono" value={form.database} onChange={(e) => set("database", e.target.value)} required={!network} />
           </Field>
           {network && (
             <Field label="TLS">

@@ -10,7 +10,7 @@ import {
   useBackend,
 } from "../api";
 import { Icon } from "../components/icons";
-import { Badge, Banner, ConnSelect } from "../components/ui";
+import { Badge, Banner, ConnSelect, plainText } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
 import { formatCount, formatDuration, formatTime, oneLine } from "../lib/format";
 
@@ -143,6 +143,7 @@ export function AdvisorScreen({ conn, connections, onSelectConn, onOpen }: Props
             )}
           </div>
           <input
+            {...plainText}
             type="search"
             className="advisor-search"
             aria-label="Search query text"

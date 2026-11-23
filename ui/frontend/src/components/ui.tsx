@@ -59,6 +59,13 @@ export function Field({ label, children, wide }: { label: string; children: Reac
   );
 }
 
+/**
+ * plainText turns off what the system keyboard does to prose, for fields
+ * holding names, hosts, and SQL: WebKit on macOS otherwise capitalizes the
+ * first letter and autocorrects words.
+ */
+export const plainText = { autoCapitalize: "off", autoCorrect: "off", spellCheck: false } as const;
+
 export const ErrorText = ({ error }: { error: string | undefined }) =>
   error ? (
     <p className="error" role="alert">
