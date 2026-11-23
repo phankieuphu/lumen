@@ -410,15 +410,15 @@ func TestLintUsesConnectionSettings(t *testing.T) {
 	ctx := t.Context()
 	a := openTestApp(t)
 	pw := "unused"
-	mk := func(name, env string) string {
+	mk := func(name, env string, readOnly bool) string {
 		t.Helper()
-		c, err := a.CreateConnection(ctx, ConnectionInput{Name: name, Dialect: "mysql", Host: "db.invalid", Database: "app", Env: env, Password: &pw})
+		c, err := a.CreateConnection(ctx, ConnectionInput{Name: name, Dialect: "mysql", Host: "db.invalid", Database: "app", Env: env, ReadOnly: readOnly, Password: &pw})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return c.ID
 	}
-	dev, prod := mk("dev", "dev"), mk("prod", "prod")
+	dev, prod, ro := mk("dev", "dev", false), mk("prod", "prod", false), mk("ro", "dev", true)
 	sql := "DROP TABLE t; DELETE FROM 'é'"
 	rules := func(id string) []string {
 		t.Helper()
@@ -439,8 +439,49 @@ func TestLintUsesConnectionSettings(t *testing.T) {
 	if got := rules(dev); len(got) != 0 {
 		t.Errorf("dev rules = %v, want none", got)
 	}
+	// Both are refused, including the DELETE that does not parse.
+	if got := fmt.Sprint(rules(ro)); got != "[L202 L202]" {
+		t.Errorf("read-only rules = %s, want [L202 L202]", got)
+	}
 	if _, err := a.Lint(ctx, "no-such-connection", sql); err == nil {
 		t.Error("Lint on an unknown connection did not fail")
+	}
+}
+
+// TestLintReadOnlyMatchesRunner checks L202 with the real classifier, so it
+// marks what the runner refuses, including SQL the parser cannot read.
+func TestLintReadOnlyMatchesRunner(t *testing.T) {
+	ctx := t.Context()
+	a := openTestApp(t)
+	pw := "unused"
+	c, err := a.CreateConnection(ctx, ConnectionInput{
+		Name: "ro", Dialect: "sqlite", Database: filepath.Join(t.TempDir(), "data.db"), ReadOnly: true, Password: &pw,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		sql     string
+		refused bool
+	}{
+		{"SELECT id FROM t", false},
+		{"WITH x AS (SELECT 1 AS id) SELECT id FROM x", false},
+		{"BEGIN", false},
+		{"INSERT OR REPLACE INTO t (a) VALUES (1)", true},
+		{"REPLACE INTO t (a) VALUES (1)", true},
+		{"PRAGMA journal_mode = WAL", true},
+		{"ATTACH DATABASE 'x.db' AS x", true},
+		{"DELETE FROM t WHERE id = 1", true},
+	}
+	for _, tt := range tests {
+		got, err := a.Lint(ctx, c.ID, tt.sql)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refused := slices.ContainsFunc(got, func(f LintIssueDTO) bool { return f.Rule == "L202" })
+		if refused != tt.refused {
+			t.Errorf("%s: L202 = %v, want %v", tt.sql, refused, tt.refused)
+		}
 	}
 }
 
