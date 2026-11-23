@@ -50,6 +50,12 @@ export function App() {
   const editorColors = useEditorColors();
 
   const conn = connections.find((c) => c.id === selectedId) ?? connections[0];
+  // The query tabs keep the last connection when none is left (another
+  // window may have deleted it), so their unsaved SQL survives until one is
+  // added; meanwhile nothing runs.
+  const lastConn = useRef<Connection>(undefined);
+  if (conn) lastConn.current = conn;
+  const tabsConn = conn ?? lastConn.current;
   // The connection whose diagram was last opened. The diagram stays mounted
   // (hidden) while it is still the current connection, so its filters,
   // selection, zoom, and dragged positions survive switching views.
@@ -78,7 +84,7 @@ export function App() {
 
   // Mod-N opens a new query tab from any view, and Shift-Mod-N a new window,
   // unless a dialog is open.
-  const hasConn = !!conn;
+  const hasTabs = !!tabsConn;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector("dialog[open]")) return;
@@ -86,7 +92,7 @@ export function App() {
         e.preventDefault();
         // Holding the keys opens one window, not one per key repeat.
         if (!e.repeat) newWindow();
-      } else if (isNewTabKey(e) && hasConn) {
+      } else if (isNewTabKey(e) && hasTabs) {
         e.preventDefault();
         setView("query");
         tabs.current?.newTab();
@@ -94,7 +100,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [hasConn, newWindow]);
+  }, [hasTabs, newWindow]);
 
   // Another window may have added, changed, or deleted a connection.
   const reloadConns = conns.reload;
@@ -144,9 +150,9 @@ export function App() {
         <div className="workspace" hidden={!workspace}>
           <ConnectionList connections={connections} selectedId={conn?.id} onSelect={setSelectedId} onNew={newConnection} />
           <main className="workspace-main">
-            {conn && (
+            {tabsConn && (
               <div className="fill" hidden={view !== "query"}>
-                <QueryTabs ref={tabs} conn={conn} onRan={bumpHistory} />
+                <QueryTabs ref={tabs} conn={tabsConn} offline={!conn} onRan={bumpHistory} />
               </div>
             )}
             {conn && view === "history" && (
@@ -159,7 +165,7 @@ export function App() {
                 </Suspense>
               </div>
             )}
-            {!conn && !conns.loading && (
+            {!conn && !conns.loading && !(view === "query" && tabsConn) && (
               <div className="empty-state">
                 <p>Add a connection to start querying.</p>
                 <button type="button" className="primary" onClick={newConnection}>
