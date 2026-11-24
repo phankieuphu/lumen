@@ -187,7 +187,15 @@ func (a *App) Lint(ctx context.Context, connID, sql string) ([]LintIssueDTO, err
 	if err != nil {
 		return nil, err
 	}
-	fs := lint.Check(sql, lint.Context{Dialect: p.Dialect, Prod: p.Env == conn.EnvProd})
+	fs := lint.Check(sql, lint.Context{
+		Dialect:  p.Dialect,
+		Prod:     p.Env == conn.EnvProd,
+		ReadOnly: p.ReadOnly,
+		IsWrite: func(stmt string) bool {
+			k := query.Classify(stmt, p.Dialect).Kind
+			return k == query.KindWrite || k == query.KindSchema
+		},
+	})
 	return lintIssueDTOs(sql, fs), nil
 }
 
