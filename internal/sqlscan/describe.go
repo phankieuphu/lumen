@@ -1,10 +1,6 @@
-package advisor
+package sqlscan
 
-import (
-	"strings"
-
-	"github.com/phankieuphu/lumen/internal/sqlscan"
-)
+import "strings"
 
 // maxTables caps the table names kept per statement.
 const maxTables = 20
@@ -29,10 +25,10 @@ var updateClause = map[string]bool{"FOR": true, "KEY": true}
 // tables it names, in order of first use. It reads tokens without parsing,
 // so it is a display aid and never a security decision: common table
 // expressions show up as tables, and unusual syntax may hide one.
-func Describe(sql string, d sqlscan.Dialect) (verb string, tables []string) {
+func Describe(sql string, d Dialect) (verb string, tables []string) {
 	tables = []string{}
 	seen := map[string]bool{}
-	sc := sqlscan.NewScanner(sql, d)
+	sc := NewScanner(sql, d)
 
 	// One entry per open paren. subquery says whether it opened with SELECT:
 	// FROM inside a plain call, as in EXTRACT(year FROM ts), names no table.
@@ -68,39 +64,39 @@ func Describe(sql string, d sqlscan.Dialect) (verb string, tables []string) {
 		}
 		wasOpened := opened
 		opened = false
-		isName := t.Kind == sqlscan.QuotedIdent || (t.Kind == sqlscan.Word && !fromEnd[t.Upper()])
+		isName := t.Kind == QuotedIdent || (t.Kind == Word && !fromEnd[t.Upper()])
 
 		// Continue a dotted name: schema.table.
 		if len(name) > 0 {
 			switch {
-			case t.Kind == sqlscan.Punct && t.Text == "." && !wantPart:
+			case t.Kind == Punct && t.Text == "." && !wantPart:
 				wantPart = true
 				continue
-			case wantPart && (t.Kind == sqlscan.Word || t.Kind == sqlscan.QuotedIdent):
+			case wantPart && (t.Kind == Word || t.Kind == QuotedIdent):
 				name = append(name, unquote(t.Text))
 				wantPart = false
 				continue
 			}
 			// FROM generate_series(1, 10) names a function, not a table.
-			if callable && t.Kind == sqlscan.Punct && t.Text == "(" {
+			if callable && t.Kind == Punct && t.Text == "(" {
 				name = nil
 			}
 			flush()
 		}
 
 		switch {
-		case t.Kind == sqlscan.Punct && t.Text == "(":
+		case t.Kind == Punct && t.Text == "(":
 			parens = append(parens, paren{outerFrom: inFrom})
 			opened, expect, inFrom = true, false, false
-		case t.Kind == sqlscan.Punct && t.Text == ")":
+		case t.Kind == Punct && t.Text == ")":
 			expect, inFrom = false, false
 			if n := len(parens); n > 0 {
 				inFrom = parens[n-1].outerFrom
 				parens = parens[:n-1]
 			}
-		case t.Kind == sqlscan.Punct && t.Text == ",":
+		case t.Kind == Punct && t.Text == ",":
 			expect, callable = inFrom, inFrom
-		case t.Kind == sqlscan.Word:
+		case t.Kind == Word:
 			up := t.Upper()
 			if verb == "" {
 				verb = up
@@ -124,7 +120,7 @@ func Describe(sql string, d sqlscan.Dialect) (verb string, tables []string) {
 				expect, inFrom = false, false
 			}
 			prev = up
-		case t.Kind == sqlscan.QuotedIdent && expect:
+		case t.Kind == QuotedIdent && expect:
 			name = []string{unquote(t.Text)}
 			expect = false
 		default:

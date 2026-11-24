@@ -293,7 +293,7 @@ func readQueries(ctx context.Context, s driver.Session, d driver.Dialect, sql st
 			return nil, fmt.Errorf("advisor: read statistics: %w", err)
 		}
 		text := str(vals[1])
-		verb, tables := Describe(text, sqlscan.Dialect(d))
+		verb, tables := sqlscan.Describe(text, sqlscan.Dialect(d))
 		out = append(out, SlowQuery{
 			ID: str(vals[0]), Title: title(verb, tables), SQL: text, Tables: tables,
 			MeanMs: round(num(vals[3]), 3), Calls: int64(num(vals[2])), SharePct: round(num(vals[4]), 1),
