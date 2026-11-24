@@ -96,7 +96,7 @@ Tick tasks off as they are done; each list ends with its phase gate.
 ### Phase 3 · AI version 1
 
 - [x] Provider interface; Anthropic, OpenAI-compatible, and Ollama providers
-- [ ] Context builder with token budget and table relevance
+- [x] Context builder with token budget and table relevance
 - [ ] Output validator: parse every SQL answer, retry once
 - [ ] AI cache and `ai_requests` log
 - [ ] Inline completion with debounce and cancel

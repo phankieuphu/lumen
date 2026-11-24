@@ -4,7 +4,8 @@
 // Ollama, which runs models on this computer.
 //
 // The package only moves text. What is sent (schema, SQL, never row data by
-// default) is decided by the context builder; keys come from the caller,
+// default) is decided by the context builder in internal/ai/prompt, whose
+// Context.System and Context.User fill a Request; keys come from the caller,
 // who reads them from internal/secret. Nothing here logs prompts, answers,
 // or keys.
 package ai

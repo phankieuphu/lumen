@@ -16,11 +16,12 @@
 | `internal/explain` | Plans with EXPLAIN (ANALYZE for reads only, in a read-only transaction that is rolled back), normalized from PostgreSQL JSON, the MySQL tree format, and SQLite's query plan; findings and a "how it ran" story | `driver`, `sqlscan` |
 | `internal/debug` | Splits a SELECT into its parts (WITH queries, each table joined, WHERE, GROUP BY, HAVING, UNION sides) and counts each one's rows in read-only transactions; lists a script's statements for stepping through; dry-runs a script in a transaction that is always rolled back, taking only statements the database can undo | `driver`, `query`, `sqlscan` |
 | `internal/ai` | One `Provider` interface for language models: Anthropic through the official Go SDK (environment defaults off, so only lumen's saved key and address are used), any OpenAI-compatible server, and Ollama on this computer; streaming, retries on rate limits and overloads, and errors mapped to `ErrAuth`, `ErrRateLimit`, `ErrRefused`, and the rest | none inside lumen |
+| `internal/ai/prompt` | Context builder: fixed instructions per task (inline completion, text-to-SQL, error fix), then the statement at the cursor, the error, the request, and the most relevant tables that fit a token budget; string literals and quoted error values masked by default, passwords always redacted; no I/O and deterministic, with a cache key over the sent text | `driver`, `schema`, `sqlscan` |
 | `internal/locks` | The locks one session holds or waits for (PostgreSQL `pg_locks`; MySQL `performance_schema.data_locks` and `metadata_locks`), read from a separate session, each with what it means | `driver` |
 | `internal/schema` | Tables, columns, PKs, and foreign keys from catalog queries, bounded by table/column limits; a versioned per-connection cache that the query path invalidates after DDL and at the end of a transaction | `driver` |
 | `internal/sqlparse` | Offline syntax check for the editor with each dialect's parser (`pg_query_go`, CGO and not on Windows; the TiDB parser for MySQL; SQLite's own parser on an empty in-memory database), and adapters that turn the PostgreSQL and MySQL trees into one shared syntax tree for lint and debug | `driver`, `sqlscan` |
 | `internal/lint` | Lint rules ([lint-rules.md](lint-rules.md)) over the shared syntax tree | `driver`, `sqlparse`, `sqlscan` |
-| `internal/sqlscan` | Dialect-aware lexer and statement splitter | — |
+| `internal/sqlscan` | Dialect-aware lexer and statement splitter; password redaction; `Describe` reads a statement's verb and table names without parsing | — |
 | `internal/driver` | `Driver`, `Conn`, `Session`, `Rows` interfaces; registry | — |
 | `internal/driver/{postgres,mysql,sqlite}` | Engine implementations | `driver` |
 
