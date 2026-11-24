@@ -47,20 +47,22 @@ type builder struct {
 	// lower holds lower-cased table names; byName maps one to its first
 	// table index and next chains tables sharing it, -1 ending the chain.
 	lower  []string
-	byName map[string]int32
-	next   []int32
+	byName map[string]int
+	next   []int
 	// fkFrom and fkTo are each foreign key's table indexes, -1 if absent;
 	// fkOrder lists keys sorted by source table, then name.
-	fkFrom, fkTo []int32
-	fkOrder      []int32
+	fkFrom, fkTo []int
+	fkOrder      []int
 
 	signals []Signal
 	scores  []int
-	order   []int32 // table indexes, most relevant first
+	order   []int // table indexes, most relevant first
 
-	words       words
-	ed          editorView
-	multiSchema bool
+	words words
+	ed    editorView
+	// home is the schema unqualified names resolve to; "" when unknown,
+	// and then every name is shown qualified.
+	home string
 
 	sent    []TableRef
 	omitted []Omission
@@ -76,11 +78,11 @@ func newBuilder(in Input, dialect driver.Dialect) *builder {
 		tables:  in.Schema.Tables,
 		fks:     in.Schema.ForeignKeys,
 		lower:   make([]string, n),
-		byName:  make(map[string]int32, n),
-		next:    make([]int32, n),
+		byName:  make(map[string]int, n),
+		next:    make([]int, n),
 		signals: make([]Signal, n),
 		scores:  make([]int, n),
-		order:   make([]int32, n),
+		order:   make([]int, n),
 	}
 	for i := range b.tables {
 		t := &b.tables[i]
@@ -89,12 +91,10 @@ func newBuilder(in Input, dialect driver.Dialect) *builder {
 		if head, ok := b.byName[b.lower[i]]; ok {
 			b.next[i] = head
 		}
-		b.byName[b.lower[i]] = int32(i)
-		b.order[i] = int32(i)
-		if t.Schema != b.tables[0].Schema {
-			b.multiSchema = true
-		}
+		b.byName[b.lower[i]] = i
+		b.order[i] = i
 	}
+	b.home = homeSchema(in.DefaultSchema, d)
 	b.indexForeignKeys()
 	b.ed = newEditor(in.Editor, in.Cursor, d)
 	b.score()
@@ -102,7 +102,7 @@ func newBuilder(in Input, dialect driver.Dialect) *builder {
 }
 
 // find returns the first table named name, ignoring case, or -1.
-func (b *builder) find(name string) int32 {
+func (b *builder) find(name string) int {
 	if i, ok := b.byName[strings.ToLower(name)]; ok {
 		return i
 	}
@@ -110,7 +110,7 @@ func (b *builder) find(name string) int32 {
 }
 
 // findExact returns the table schema.name, or -1.
-func (b *builder) findExact(schemaName, name string) int32 {
+func (b *builder) findExact(schemaName, name string) int {
 	for i := b.find(name); i >= 0; i = b.next[i] {
 		if t := &b.tables[i]; t.Name == name && t.Schema == schemaName {
 			return i
@@ -120,18 +120,18 @@ func (b *builder) findExact(schemaName, name string) int32 {
 }
 
 func (b *builder) indexForeignKeys() {
-	b.fkFrom = make([]int32, len(b.fks))
-	b.fkTo = make([]int32, len(b.fks))
-	b.fkOrder = make([]int32, 0, len(b.fks))
+	b.fkFrom = make([]int, len(b.fks))
+	b.fkTo = make([]int, len(b.fks))
+	b.fkOrder = make([]int, 0, len(b.fks))
 	for k := range b.fks {
 		fk := &b.fks[k]
 		b.fkFrom[k] = b.findExact(fk.FromSchema, fk.FromTable)
 		b.fkTo[k] = b.findExact(fk.ToSchema, fk.ToTable)
 		if b.fkFrom[k] >= 0 {
-			b.fkOrder = append(b.fkOrder, int32(k))
+			b.fkOrder = append(b.fkOrder, k)
 		}
 	}
-	slices.SortFunc(b.fkOrder, func(x, y int32) int {
+	slices.SortFunc(b.fkOrder, func(x, y int) int {
 		if c := cmp.Compare(b.fkFrom[x], b.fkFrom[y]); c != 0 {
 			return c
 		}
@@ -148,8 +148,8 @@ func (b *builder) indexForeignKeys() {
 
 // foreignKeys returns the indexes of the foreign keys held by table i, in
 // render order.
-func (b *builder) foreignKeys(i int32) []int32 {
-	lo, _ := slices.BinarySearchFunc(b.fkOrder, i, func(k, t int32) int { return cmp.Compare(b.fkFrom[k], t) })
+func (b *builder) foreignKeys(i int) []int {
+	lo, _ := slices.BinarySearchFunc(b.fkOrder, i, func(k, t int) int { return cmp.Compare(b.fkFrom[k], t) })
 	hi := lo
 	for hi < len(b.fkOrder) && b.fkFrom[b.fkOrder[hi]] == i {
 		hi++
@@ -205,7 +205,7 @@ func (b *builder) score() {
 		}
 	}
 
-	slices.SortFunc(b.order, func(x, y int32) int {
+	slices.SortFunc(b.order, func(x, y int) int {
 		tx, ty := &b.tables[x], &b.tables[y]
 		return cmp.Or(
 			cmp.Compare(b.scores[y], b.scores[x]),
@@ -256,14 +256,39 @@ func (b *builder) markStatement(st *sqlscan.Statement, sig Signal) {
 }
 
 // mark sets sig on the tables ref names. A qualified ref matches only its
-// schema; an unqualified one matches the name in any schema.
+// schema. An unqualified one matches the table in the home schema, as the
+// database resolves it; with none there, or no known home, the name in any
+// schema.
 func (b *builder) mark(ref string, sig Signal) {
 	schemaName, name := splitRef(ref)
+	if schemaName == "" && b.home != "" {
+		for i := b.find(name); i >= 0; i = b.next[i] {
+			if strings.EqualFold(b.tables[i].Name, name) && b.tables[i].Schema == b.home {
+				b.signals[i] |= sig
+				return
+			}
+		}
+	}
 	for i := b.find(name); i >= 0; i = b.next[i] {
 		if schemaName == "" || strings.EqualFold(b.tables[i].Schema, schemaName) {
 			b.signals[i] |= sig
 		}
 	}
+}
+
+// homeSchema is the schema unqualified names resolve to: def if set, else
+// public on PostgreSQL and main on SQLite. MySQL has no fixed default, so
+// without def it is "" and every name is qualified.
+func homeSchema(def string, d sqlscan.Dialect) string {
+	switch {
+	case def != "":
+		return def
+	case d == sqlscan.Postgres:
+		return "public"
+	case d == sqlscan.SQLite:
+		return "main"
+	}
+	return ""
 }
 
 // splitRef splits db.schema.table or schema.table at its last dot.

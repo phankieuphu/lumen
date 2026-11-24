@@ -54,8 +54,43 @@ func TestRelevance(t *testing.T) {
 			},
 		},
 		{
-			name: "unqualified_name_matches_every_schema",
+			name: "unqualified_name_matches_the_home_schema",
 			in:   editorInput(TextToSQL, sch, "SELECT * FROM ORDERS|"),
+			check: func(t *testing.T, _ []string, _ map[string]int, sig map[string]Signal) {
+				if sig["public.orders"]&InCursorStatement == 0 || sig["sales.orders"]&InCursorStatement != 0 {
+					t.Fatalf("signals = %v", sig)
+				}
+			},
+		},
+		{
+			name: "unqualified_name_with_a_set_home_schema",
+			in: func() Input {
+				in := editorInput(TextToSQL, sch, "SELECT * FROM orders|")
+				in.DefaultSchema = "sales"
+				return in
+			}(),
+			check: func(t *testing.T, _ []string, _ map[string]int, sig map[string]Signal) {
+				if sig["sales.orders"]&InCursorStatement == 0 || sig["public.orders"]&InCursorStatement != 0 {
+					t.Fatalf("signals = %v", sig)
+				}
+			},
+		},
+		{
+			name: "unqualified_name_not_in_the_home_schema",
+			in:   editorInput(TextToSQL, sch, "SELECT * FROM invoices|"),
+			check: func(t *testing.T, _ []string, _ map[string]int, sig map[string]Signal) {
+				if sig["sales.invoices"]&InCursorStatement == 0 {
+					t.Fatalf("signals = %v", sig)
+				}
+			},
+		},
+		{
+			name: "unqualified_name_on_mysql_without_a_home",
+			in: func() Input {
+				in := editorInput(TextToSQL, sch, "SELECT * FROM orders|")
+				in.Dialect = driver.MySQL
+				return in
+			}(),
 			check: func(t *testing.T, _ []string, _ map[string]int, sig map[string]Signal) {
 				if sig["sales.orders"]&InCursorStatement == 0 || sig["public.orders"]&InCursorStatement == 0 {
 					t.Fatalf("signals = %v", sig)

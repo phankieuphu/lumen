@@ -326,9 +326,11 @@ func lastParen(s string, open int) int {
 
 // maskedError returns the error text to send: password literals redacted
 // and, unless Privacy.KeepLiterals, row values and quoted values masked.
-// A quoted value survives only when it names a known schema, table,
-// column, or foreign key, or an identifier in the editor, as in
-// relation "orderz" does not exist. MySQL's echo of the statement is
+// A quoted value survives only when it stands where messages put names,
+// after a word such as relation or column, and names a known schema,
+// table, column, or foreign key, or an identifier in the editor, as in
+// relation "orderz" does not exist. A value that only looks like a name,
+// as in Duplicate entry 'orders', is masked. MySQL's echo of the statement is
 // always masked, or with KeepLiterals sanitized like editor SQL, so a
 // password in it stays hidden.
 func (b *builder) maskedError() string {
@@ -358,7 +360,7 @@ func (b *builder) maskedError() string {
 			inner, _ := sanitize(s[sp.open+1:sp.close], -1, b.d, true)
 			cuts = append(cuts, cut{sp.open, sp.close, inner})
 		case keep:
-		case sp.kind == spanQuote && knownValue(s[sp.open+1:sp.close], known):
+		case sp.kind == spanQuote && namePosition(s, sp.open) && knownValue(s[sp.open+1:sp.close], known):
 		case sp.kind == spanQuote && sp.group > 0:
 			// Pairing several values on a line is a guess; mask from the
 			// first unknown one through the line's last.
@@ -394,6 +396,29 @@ func (b *builder) maskedError() string {
 	}
 	out.WriteString(s[last:])
 	return out.String()
+}
+
+// nameWords are the words after which PostgreSQL and MySQL messages quote
+// a name rather than a value: relation "t", column "c" of relation "t",
+// constraint "k", Table 'db.t', for key 'k'.
+var nameWords = map[string]bool{
+	"relation": true, "table": true, "view": true, "column": true, "constraint": true,
+	"index": true, "key": true, "schema": true, "database": true, "sequence": true,
+	"function": true, "procedure": true, "trigger": true, "type": true,
+}
+
+// namePosition reports whether the quote at open follows one of nameWords.
+func namePosition(s string, open int) bool {
+	end := len(strings.TrimRight(s[:open], " "))
+	start := end
+	for start > 0 && isWordByte(s[start-1]) {
+		start--
+	}
+	return start < end && nameWords[strings.ToLower(s[start:end])]
+}
+
+func isWordByte(c byte) bool {
+	return c == '_' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
 }
 
 // knownNames returns the lower-cased dot parts of the quoted values in s,

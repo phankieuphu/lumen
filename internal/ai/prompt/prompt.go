@@ -83,6 +83,11 @@ type Input struct {
 	// Cursor is a byte offset into Editor, clamped to a rune boundary. For
 	// FixError it should sit inside the statement that failed.
 	Cursor int
+	// DefaultSchema is the schema unqualified names resolve to: the first
+	// schema on PostgreSQL's search_path, MySQL's current database. If
+	// empty, public on PostgreSQL and main on SQLite; on MySQL every table
+	// is then shown qualified. Tables in other schemas always are.
+	DefaultSchema string
 	// Budget caps the estimated input tokens; DefaultBudget(Task) if <= 0,
 	// and at most MaxBudget.
 	Budget  int

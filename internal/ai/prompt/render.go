@@ -75,7 +75,7 @@ func (b *builder) schemaPart(limit int) []Section {
 
 // fit renders table i in the fullest form that fits in limit bytes. The
 // returned line is valid until the next call.
-func (b *builder) fit(i int32, limit int) (Form, []byte, bool) {
+func (b *builder) fit(i int, limit int) (Form, []byte, bool) {
 	if limit <= 0 {
 		return "", nil, false
 	}
@@ -89,7 +89,7 @@ func (b *builder) fit(i int32, limit int) (Form, []byte, bool) {
 	return "", nil, false
 }
 
-func (b *builder) addName(o *Omission, i int32) {
+func (b *builder) addName(o *Omission, i int) {
 	o.Count++
 	if len(o.Names) < maxOmittedNames {
 		t := &b.tables[i]
@@ -105,7 +105,7 @@ func (b *builder) addName(o *Omission, i int32) {
 // reports whether they fit in limit bytes. It stops early once they do
 // not. The compact form keeps key, foreign-key, and request-matched
 // columns and counts the rest.
-func (b *builder) appendTable(dst []byte, i int32, compact bool, limit int) ([]byte, bool) {
+func (b *builder) appendTable(dst []byte, i int, compact bool, limit int) ([]byte, bool) {
 	t := &b.tables[i]
 	fks := b.foreignKeys(i)
 	if t.Kind == "view" {
@@ -164,7 +164,7 @@ func (b *builder) appendTable(dst []byte, i int32, compact bool, limit int) ([]b
 	return dst, len(dst) <= limit
 }
 
-func (b *builder) isForeignKeyColumn(fks []int32, name string) bool {
+func (b *builder) isForeignKeyColumn(fks []int, name string) bool {
 	for _, k := range fks {
 		for _, c := range b.fks[k].FromColumns {
 			if c == name {
@@ -194,19 +194,11 @@ func (b *builder) appendName(dst []byte, schemaName, name string) []byte {
 	return appendIdent(dst, name, b.d)
 }
 
-// qualify reports whether names in schemaName are shown qualified: only
-// when several schemas are in use, and not for the dialect's default one.
+// qualify reports whether names in schemaName are shown qualified: every
+// schema but the home one, so SQL the model writes from the names finds
+// the same tables, even when only one schema is in use.
 func (b *builder) qualify(schemaName string) bool {
-	if !b.multiSchema || schemaName == "" {
-		return false
-	}
-	switch b.d {
-	case sqlscan.Postgres:
-		return schemaName != "public"
-	case sqlscan.SQLite:
-		return schemaName != "main"
-	}
-	return true
+	return schemaName != "" && schemaName != b.home
 }
 
 // appendIdent appends s as an identifier: as is when it is a plain name,

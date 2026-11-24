@@ -197,7 +197,7 @@ func TestInputHasNoDataFields(t *testing.T) {
 		typ  reflect.Type
 		want []string
 	}{
-		{reflect.TypeFor[Input](), []string{"Task", "Dialect", "Schema", "Request", "Error", "Editor", "Cursor", "Budget", "Privacy"}},
+		{reflect.TypeFor[Input](), []string{"Task", "Dialect", "Schema", "Request", "Error", "Editor", "Cursor", "DefaultSchema", "Budget", "Privacy"}},
 		{reflect.TypeFor[Privacy](), []string{"KeepLiterals"}},
 		{reflect.TypeFor[schema.Schema](), []string{"Dialect", "Tables", "ForeignKeys", "Truncated", "Version"}},
 		{reflect.TypeFor[schema.Table](), []string{"Schema", "Name", "Kind", "Columns"}},
@@ -276,5 +276,56 @@ func TestDefaultBudget(t *testing.T) {
 		if got := DefaultBudget(task); got != want {
 			t.Errorf("DefaultBudget(%q) = %d, want %d", task, got, want)
 		}
+	}
+}
+
+func TestQualification(t *testing.T) {
+	one := func(schemaName string) schema.Schema {
+		return schema.Schema{Tables: []schema.Table{
+			{Schema: schemaName, Name: "orders", Kind: "table", Columns: []schema.Column{{Name: "id", Type: "bigint", PrimaryKey: true}}},
+			{Schema: schemaName, Name: "items", Kind: "table", Columns: []schema.Column{{Name: "order_id", Type: "bigint"}}},
+		}, ForeignKeys: []schema.ForeignKey{{
+			Name: "items_order_id_fkey", FromSchema: schemaName, FromTable: "items", FromColumns: []string{"order_id"},
+			ToSchema: schemaName, ToTable: "orders", ToColumns: []string{"id"},
+		}}}
+	}
+	tests := []struct {
+		name    string
+		dialect driver.Dialect
+		sch     schema.Schema
+		home    string
+		want    []string
+		notWant []string
+	}{
+		{
+			// One schema is not enough to leave names bare: SQL written
+			// from them must find the same tables.
+			"postgres_single_non_default_schema", driver.Postgres, one("sales"), "",
+			[]string{"\nsales.orders(", "-> sales.orders(id)"},
+			[]string{"\norders("},
+		},
+		{"postgres_public", driver.Postgres, one("public"), "", []string{"\norders(", "-> orders(id)"}, []string{"public."}},
+		{"postgres_set_home", driver.Postgres, one("sales"), "sales", []string{"\norders("}, []string{"sales."}},
+		{"mysql_without_home", driver.MySQL, one("shop"), "", []string{"\nshop.orders(", "-> shop.orders(id)"}, nil},
+		{"mysql_current_database", driver.MySQL, one("shop"), "shop", []string{"\norders("}, []string{"shop."}},
+		{"sqlite_main", driver.SQLite, one("main"), "", []string{"\norders("}, []string{"main."}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := Build(Input{Task: TextToSQL, Dialect: tt.dialect, Schema: tt.sch, Request: "list orders", DefaultSchema: tt.home})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, w := range tt.want {
+				if !strings.Contains(c.User, w) {
+					t.Errorf("User lacks %q:\n%s", w, c.User)
+				}
+			}
+			for _, w := range tt.notWant {
+				if strings.Contains(c.User, w) {
+					t.Errorf("User has %q:\n%s", w, c.User)
+				}
+			}
+		})
 	}
 }

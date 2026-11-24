@@ -100,6 +100,12 @@ func TestMaskedError(t *testing.T) {
 		{"unknown_name_masked", pg, "", `relation "orderz" does not exist`, false, `relation "?" does not exist`},
 		{"schema_names_kept", pg, "", `column "status" of relation "public.orders" is missing`, false, `column "status" of relation "public.orders" is missing`},
 		{"foreign_key_name_kept", pg, "", `violates foreign key constraint "orders_customer_id_fkey"`, false, `violates foreign key constraint "orders_customer_id_fkey"`},
+		// A value that equals a name is still a value: only quotes after a
+		// word that introduces a name are kept.
+		{"value_equal_to_a_table_name_masked", my, "", "Duplicate entry 'orders' for key 'PRIMARY'", false, "Duplicate entry '?'"},
+		{"value_equal_to_an_editor_identifier_masked", pg, "SELECT * FROM orderz", `invalid input syntax for type integer: "orderz"`, false, `invalid input syntax for type integer: "?"`},
+		{"value_equal_to_a_column_name_masked", my, "", "Incorrect integer value: 'status' for column 'total' at row 1", false, "Incorrect integer value: '?' at row 1"},
+		{"mysql_table_name_kept", my, "", "Table 'public.orders' doesn't exist", false, "Table 'public.orders' doesn't exist"},
 		{
 			"several_values_on_a_line_masked_from_the_first_unknown", my, "",
 			"Duplicate entry 'a@b.com' for key 'customers.email'", false, "Duplicate entry '?'",

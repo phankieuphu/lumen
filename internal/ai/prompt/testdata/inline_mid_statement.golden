@@ -1,16 +1,16 @@
 task=inline dialect=postgres version=7 tokens=786 budget=2000
-key=0b568a32ac98ae2b881f906fb694c3e24c0f3c1254d5eba05332af58ec9ed0fd
+key=2ba8ea548d194e1e542f473d9059c806a386c4024ff8f6c7217c4df00c8496c9
 == tables
 public.customers full score=120 signals=cursorStatement,neighbour
 public.orders full score=120 signals=cursorStatement,neighbour
-sales.orders full score=100 signals=cursorStatement
 public.Order Notes full score=20 signals=neighbour
 public.order_items full score=20 signals=neighbour
-sales.invoices full score=20 signals=neighbour
 public.audit_log full score=0 signals=
 public.big_orders full score=0 signals=
 public.categories full score=0 signals=
 public.products full score=0 signals=
+sales.invoices full score=0 signals=
+sales.orders full score=0 signals=
 == omitted
 == instructions (Instructions) tokens=342
 You are the SQL assistant in lumen, a desktop SQL client connected to a PostgreSQL database.
@@ -24,20 +24,20 @@ customers(id bigint PK, email text NOT NULL, name text, referred_by bigint)
   FK (referred_by) -> customers(id)
 orders(id bigint PK, customer_id bigint NOT NULL, status text NOT NULL, total numeric(12,2), created_at timestamp with time zone NOT NULL)
   FK (customer_id) -> customers(id)
-sales.orders(id bigint PK, region text NOT NULL, amount numeric(12,2))
 "Order Notes"(id bigint PK, order_id bigint, body text)
   FK (order_id) -> orders(id)
 order_items(order_id bigint PK, line integer PK, product_id bigint NOT NULL, quantity integer NOT NULL, price numeric(12,2))
   FK (order_id) -> orders(id)
   FK (product_id) -> products(id)
-sales.invoices(id bigint PK, order_id bigint NOT NULL, issued_on date)
-  FK (order_id) -> sales.orders(id)
 audit_log(id bigint PK, at timestamp with time zone NOT NULL, message text)
 view big_orders(id bigint, customer_id bigint, total numeric(12,2))
 categories(id bigint PK, name text NOT NULL, parent_id bigint)
   FK (parent_id) -> categories(id)
 products(id bigint PK, sku text NOT NULL, name text NOT NULL, category_id bigint)
   FK (category_id) -> categories(id)
+sales.invoices(id bigint PK, order_id bigint NOT NULL, issued_on date)
+  FK (order_id) -> sales.orders(id)
+sales.orders(id bigint PK, region text NOT NULL, amount numeric(12,2))
 </schema>
 == sqlBeforeCursor (SQL before the cursor) tokens=42
 <sql_before_cursor>SELECT o.id, c.email
