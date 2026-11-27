@@ -97,12 +97,12 @@ Tick tasks off as they are done; each list ends with its phase gate.
 
 - [x] Provider interface; Anthropic, OpenAI-compatible, and Ollama providers
 - [x] Context builder with token budget and table relevance
-- [ ] Output validator: parse every SQL answer, retry once
-- [ ] AI cache and `ai_requests` log
-- [ ] Inline completion with debounce and cancel
-- [ ] Text-to-SQL and error fix with diff view
-- [ ] AI settings screen with "what is sent" preview and privacy switches
-- [ ] AI test set (about 50 cases) and a command to score it
+- [x] Output validator: parse every SQL answer, retry once
+- [x] AI cache and `ai_requests` log
+- [x] Inline completion with debounce and cancel
+- [x] Text-to-SQL and error fix with diff view
+- [x] AI settings screen with "what is sent" preview and privacy switches
+- [x] AI test set (51 cases) and [a command to score it](install.md#ai-assistance)
 - [ ] Gate: test set passes; no row data sent with default settings
 
 ### Phase 4 · Slow-query advisor

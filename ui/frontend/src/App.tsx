@@ -152,7 +152,7 @@ export function App() {
           <main className="workspace-main">
             {tabsConn && (
               <div className="fill" hidden={view !== "query"}>
-                <QueryTabs ref={tabs} conn={tabsConn} offline={!conn} onRan={bumpHistory} />
+                <QueryTabs ref={tabs} conn={tabsConn} offline={!conn} visible={view === "query"} onRan={bumpHistory} />
               </div>
             )}
             {conn && view === "history" && (

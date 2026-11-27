@@ -43,6 +43,7 @@ interface Props {
   onRan: () => void;
   /** The connection is gone: tabs keep their SQL, but nothing runs. */
   offline?: boolean;
+  visible?: boolean;
   ref?: Ref<QueryTabsHandle>;
 }
 
@@ -50,7 +51,7 @@ interface Props {
  * QueryTabs holds several query editors on the current connection. Hidden
  * tabs stay mounted, so their text, results, and files survive switching.
  */
-export function QueryTabs({ conn, onRan, offline, ref }: Props) {
+export function QueryTabs({ conn, onRan, offline, visible = true, ref }: Props) {
   const backend = useBackend();
   const blank = (id: number): Tab => ({ id, editor: createRef(), file: { dirty: false } });
   // The initializer stays pure (StrictMode runs it twice), so tab 1 is made
@@ -139,7 +140,7 @@ export function QueryTabs({ conn, onRan, offline, ref }: Props) {
             conn={conn}
             editorRef={t.editor}
             onRan={ran}
-            active={t.id === active.id}
+            active={visible && t.id === active.id}
             txVersion={txVersion}
             offline={offline}
             onFile={(file) => setFile(t.id, file)}
