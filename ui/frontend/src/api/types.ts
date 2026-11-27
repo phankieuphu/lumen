@@ -450,37 +450,23 @@ export interface MonitorSnapshot {
 // AI settings (phase 3).
 
 export type ProviderId = "anthropic" | "openai" | "ollama";
-export type AITask = "inline" | "textToSql" | "fixError" | "advise";
-
-export interface AIProvider {
-  id: ProviderId;
-  name: string;
-  /** Runs on this computer; nothing leaves it. */
-  local: boolean;
-  note: string;
-  /** Whether an API key is stored, or none is needed. */
-  ready: boolean;
-  keyNote: string;
-  models: string[];
-}
+export type AITask = "inline" | "textToSql" | "fixError";
 
 export interface AISettings {
   provider: ProviderId;
-  models: Record<AITask, string>;
-  sampleRows: boolean;
+  models: Partial<Record<AITask, string>>;
+  baseUrl: string;
   maskLiterals: boolean;
   inlineCompletion: boolean;
 }
 
-export interface PreviewLine {
-  text: string;
-  tone?: "head" | "muted" | "warn";
-}
-
-export interface AIPreview {
-  destination: string;
-  local: boolean;
-  lines: PreviewLine[];
+export interface AIInput {
+  connId: string;
+  task: AITask;
+  editor: string;
+  cursor: number;
+  request?: string;
+  error?: string;
 }
 
 /** Backend is the app façade (internal/app.App) as the UI sees it. */
@@ -565,9 +551,9 @@ export interface Backend {
   monitorEndSession(connId: string, pid: number): Promise<void>;
   monitorSetAlert(connId: string, ruleId: string, enabled: boolean): Promise<void>;
 
-  aiProviders(): Promise<AIProvider[]>;
   aiSettings(): Promise<AISettings>;
   saveAISettings(settings: AISettings): Promise<AISettings>;
-  /** The exact text a request for this task would send with these settings. */
-  aiPreview(task: "advise" | "inline", settings: AISettings): Promise<AIPreview>;
+  setAIKey(provider: ProviderId, key: string): Promise<void>;
+  aiPreview(input: AIInput, settings: AISettings): Promise<string>;
+  aiSuggest(input: AIInput, signal: AbortSignal): Promise<string>;
 }

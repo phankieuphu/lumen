@@ -3003,3 +3003,24 @@ button.erd-chip:hover {
   color: var(--muted);
   line-height: 1.45;
 }
+
+.ai-settings-fields {
+  border: 0;
+  padding-block: 16px;
+}
+
+.ai-settings-fields label,
+.ai-query-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.ai-query-form {
+  padding: 12px;
+}
+
+.cm-ai-suggestion {
+  opacity: 0.55;
+  white-space: pre;
+  pointer-events: none;
+}

@@ -7,6 +7,7 @@ import { DebugView } from "../components/DebugView";
 import { type ExplainState, ExplainView } from "../components/ExplainView";
 import { LocksView } from "../components/LocksView";
 import { ResultDetails } from "../components/ResultDetails";
+import { byteOffset, QueryAI } from "../components/QueryAI";
 import { ResultGrid } from "../components/ResultGrid";
 import { type EditorHandle, type EditorIssue, type RunTarget, SqlEditor } from "../components/SqlEditor";
 import { Banner, Confirm, EnvBadge, EnvDot, KindBadge, plainText, StatusBadge, TxTag } from "../components/ui";
@@ -49,6 +50,22 @@ export interface FileState {
 
 export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion = 0, onFile, offline = false }: Props) {
   const backend = useBackend();
+  const [aiMode, setAIMode] = useState<"text" | "fix">();
+  const [inlineEnabled, setInlineEnabled] = useState(false);
+  const lastRun = useRef<{ text: string; from: number; to: number }>(null);
+  useEffect(() => {
+    if (!active || offline) return;
+    let current = true;
+    void backend.aiSettings().then(
+      (settings) => { if (current) setInlineEnabled(settings.inlineCompletion); },
+      () => { if (current) setInlineEnabled(false); },
+    );
+    return () => { current = false; };
+  }, [active, backend, offline]);
+  const inlineRequest = useCallback((editor: string, cursor: number, signal: AbortSignal) =>
+    backend.aiSuggest({ connId: conn.id, task: "inline", editor, cursor: byteOffset(editor, cursor) }, signal),
+    [backend, conn.id],
+  );
   const txn = useTransaction(conn.id);
   const { tx } = txn;
   // The backend keeps one transaction per connection, shared by every tab;
@@ -70,20 +87,27 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
   // The selection, or the statement at the cursor when the editor holds
   // several, which flashes. If splitting fails, the whole text goes and the
   // backend says why.
-  const pick = async (t: RunTarget): Promise<string> => {
-    if (t.selection !== undefined) return t.selection;
+  const pick = async (t: RunTarget, remember = false): Promise<string> => {
+    const picked = (from: number, to: number) => {
+      if (remember) lastRun.current = { text: t.text, from, to };
+      return t.text.slice(from, to);
+    };
+    if (t.selection !== undefined && t.selectionFrom !== undefined) {
+      return picked(t.selectionFrom, t.selectionFrom + t.selection.length);
+    }
     const ranges = await backend.statements(conn.dialect, t.text).catch(() => []);
     const at = ranges.length > 1 ? statementAt(ranges, t.cursor) : undefined;
-    if (!at) return t.text;
+    if (!at) return picked(0, t.text.length);
     editorRef.current?.flash(at.from, at.to);
-    return t.text.slice(at.from, at.to);
+    return picked(at.from, at.to);
   };
   const [tab, setTab] = useState<"results" | "explain" | "locks" | "debug">("results");
   const runSql = (t: RunTarget) => {
     if (offline) return;
     txn.dismiss();
     setTab("results");
-    void pick(t).then(run);
+    setAIMode(undefined);
+    void pick(t, true).then(run);
   };
   const [explained, setExplained] = useState<ExplainState>({ phase: "idle" });
   // Only the latest Explain may show its plan.
@@ -201,6 +225,17 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
           <span className="muted">{dialectName(conn.dialect)}</span>
         </span>
       </div>
+      {!offline && <div className="chip-row pad-x">
+        <button type="button" onClick={() => setAIMode("text")}>Text to SQL</button>
+        {state.sql && (state.error || summary?.error) && (
+          <button type="button" onClick={() => setAIMode("fix")}>Fix with AI</button>
+        )}
+      </div>}
+      {active && !offline && aiMode && (
+        <QueryAI key={aiMode} connId={conn.id} editorRef={editorRef}
+          failure={aiMode === "fix" && state.sql ? { sql: state.sql, message: state.error ?? summary?.error ?? "", range: lastRun.current ?? undefined } : undefined}
+          onClose={() => setAIMode(undefined)} />
+      )}
       <SqlEditor
         ref={editorRef}
         dialect={conn.dialect}
@@ -211,6 +246,7 @@ export function QueryScreen({ conn, editorRef, onRan, active = true, txVersion =
         onExplain={explainSql}
         onChange={file.markDirty}
         completion={completion}
+        inlineRequest={active && !offline && inlineEnabled ? inlineRequest : undefined}
       />
       {offline && (
         <Banner tone="warn">

@@ -476,3 +476,29 @@ func knownValue(v string, known map[string]bool) bool {
 	}
 	return true
 }
+
+// ErrorCategory summarizes a database failure without forwarding its text.
+func ErrorCategory(message string) string {
+	if message == "" {
+		return ""
+	}
+	message = strings.ToLower(message)
+	switch {
+	case strings.Contains(message, "syntax error"):
+		return "The database reported a SQL syntax error."
+	case strings.Contains(message, "no such column"), strings.Contains(message, "unknown column"),
+		strings.Contains(message, "column") && strings.Contains(message, "does not exist"):
+		return "The database reported an unknown column."
+	case strings.Contains(message, "no such table"), strings.Contains(message, "unknown table"),
+		strings.Contains(message, "relation") && strings.Contains(message, "does not exist"):
+		return "The database reported an unknown table."
+	case strings.Contains(message, "ambiguous"):
+		return "The database reported an ambiguous reference."
+	case strings.Contains(message, "constraint"), strings.Contains(message, "duplicate entry"):
+		return "The database reported a constraint violation."
+	case strings.Contains(message, "datatype mismatch"), strings.Contains(message, "invalid input syntax"):
+		return "The database reported a type or conversion error."
+	default:
+		return "The database rejected the query."
+	}
+}

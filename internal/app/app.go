@@ -63,6 +63,8 @@ type Config struct {
 type App struct {
 	log       *slog.Logger
 	store     *store.Store
+	secrets   secret.Store
+	aiCache   suggestionCache
 	conns     *conn.Manager
 	audit     *audit.Log
 	history   *query.History
@@ -100,6 +102,7 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	a := &App{
 		log:     cfg.Logger,
 		store:   st,
+		secrets: cfg.Secrets,
 		conns:   conn.NewManager(st, cfg.Secrets),
 		audit:   audit.New(st),
 		history: query.NewHistory(st),

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/phankieuphu/lumen/internal/advisor"
+	"github.com/phankieuphu/lumen/internal/ai"
 	"github.com/phankieuphu/lumen/internal/audit"
 	"github.com/phankieuphu/lumen/internal/debug"
 	"github.com/phankieuphu/lumen/internal/explain"
@@ -197,4 +198,29 @@ func (p *API) AuditVerify(ctx context.Context) (audit.VerifyResult, error) {
 // AuditExport forwards to App.AuditExport.
 func (p *API) AuditExport(ctx context.Context, path, format string, f AuditFilter) error {
 	return p.a.AuditExport(ctx, path, format, f)
+}
+
+// AISettings forwards to App.AISettings.
+func (p *API) AISettings(ctx context.Context) (AISettings, error) {
+	return p.a.AISettings(ctx)
+}
+
+// SaveAISettings forwards to App.SaveAISettings.
+func (p *API) SaveAISettings(ctx context.Context, settings AISettings) (AISettings, error) {
+	return p.a.SaveAISettings(ctx, settings)
+}
+
+// SetAIKey forwards to App.SetAIKey.
+func (p *API) SetAIKey(provider ai.ProviderID, key string) error {
+	return p.a.SetAIKey(provider, key)
+}
+
+// AIPreview forwards to App.AIPreview.
+func (p *API) AIPreview(ctx context.Context, input AIInput, settings AISettings) (string, error) {
+	return p.a.AIPreview(ctx, input, settings)
+}
+
+// AISuggest forwards to App.AISuggest.
+func (p *API) AISuggest(ctx context.Context, input AIInput) (string, error) {
+	return p.a.AISuggest(ctx, input)
 }

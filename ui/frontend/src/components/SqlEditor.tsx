@@ -10,6 +10,8 @@ import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import type { Dialect } from "../api";
 import type { SchemaCompletion } from "../lib/completion";
 
+import { inlineAI, type InlineRequest } from "./inlineAI";
+
 const dialects: Record<Dialect, SQLDialect> = { postgres: PostgreSQL, mysql: MySQL, sqlite: SQLite };
 
 /** language is the SQL support for a dialect, completing names from completion. */
@@ -142,6 +144,7 @@ export interface EditorHandle {
   /** flash briefly highlights [from, to), e.g. the statement that ran. */
   flash(from: number, to: number): void;
   setText(text: string): void;
+  replace(from: number, to: number, text: string): void;
   focus(): void;
 }
 
@@ -162,6 +165,7 @@ interface Props {
   onChange?: () => void;
   /** Tables and columns to complete, besides keywords. */
   completion?: SchemaCompletion;
+  inlineRequest?: InlineRequest;
   ref?: Ref<EditorHandle>;
 }
 
@@ -194,7 +198,7 @@ const CHECK_DELAY_MS = 400;
  * SqlEditor wraps a CodeMirror 6 view. The text lives in CodeMirror, not in
  * React state, so typing never re-renders the screen. Mod-Enter runs.
  */
-export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onOpen, onExplain, onChange, completion, ref }: Props) {
+export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onOpen, onExplain, onChange, completion, inlineRequest, ref }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
   const languageConf = useRef(new Compartment());
@@ -208,6 +212,7 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
   openRef.current = onOpen;
   const explainRef = useRef(onExplain);
   explainRef.current = onExplain;
+  const inlineConf = useRef(new Compartment());
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
   const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -237,6 +242,7 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
           syntaxHighlighting(highlight),
           qualifiedNames,
           flashField,
+          inlineConf.current.of([]),
           // A check that fails (or no checker) just shows no marks.
           linter(
             async (v): Promise<Diagnostic[]> => {
@@ -280,6 +286,10 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
     if (view.current) forceLinting(view.current);
   }, [dialect, check]);
 
+  useEffect(() => {
+    view.current?.dispatch({ effects: inlineConf.current.reconfigure(inlineRequest ? inlineAI(inlineRequest) : []) });
+  }, [inlineRequest]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -294,6 +304,9 @@ export function SqlEditor({ dialect, onRun, check, initialText = "", onSave, onO
       setText(text) {
         const v = view.current;
         v?.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: text }, selection: { anchor: text.length } });
+      },
+      replace(from, to, text) {
+        view.current?.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } });
       },
       focus: () => view.current?.focus(),
     }),

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `cmd/lumen` | Parse flags, wire services, start the shell | `app`, `ui/shell` |
 | `ui/shell` | The only Wails import; opens a window at start and per New window, serves the embedded UI, binds `app.API`, attaches dialogs to the window that asked, and emits events | `app` |
-| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `advisor`, `explain`, `locks`, `debug`, `sqlparse`, `lint`, `store` |
+| `internal/app` | Façade the UI calls; maps domain types to DTOs. `API` is the UI-facing subset the shell binds, without lifecycle methods | `query`, `conn`, `audit`, `schema`, `advisor`, `explain`, `locks`, `debug`, `sqlparse`, `lint`, `store`, `ai`, `secret` |
 | `internal/query` | Run / cancel by request ID, page streaming, classifier | `conn`, `audit`, `store`, `driver`, `locks` |
 | `internal/conn` | Connection profiles, pool cache, read-only, env tags | `driver`, `store`, `secret` |
 | `internal/audit` | Append-only, hash-chained log; verify; CSV/JSON export | `store` |
@@ -16,7 +16,7 @@
 | `internal/explain` | Plans with EXPLAIN (ANALYZE for reads only, in a read-only transaction that is rolled back), normalized from PostgreSQL JSON, the MySQL tree format, and SQLite's query plan; findings and a "how it ran" story | `driver`, `sqlscan` |
 | `internal/debug` | Splits a SELECT into its parts (WITH queries, each table joined, WHERE, GROUP BY, HAVING, UNION sides) and counts each one's rows in read-only transactions; lists a script's statements for stepping through; dry-runs a script in a transaction that is always rolled back, taking only statements the database can undo | `driver`, `query`, `sqlscan` |
 | `internal/ai` | One `Provider` interface for language models: Anthropic through the official Go SDK (environment defaults off, so only lumen's saved key and address are used), any OpenAI-compatible server, and Ollama on this computer; streaming, retries on rate limits and overloads, and errors mapped to `ErrAuth`, `ErrRateLimit`, `ErrRefused`, and the rest | none inside lumen |
-| `internal/ai/prompt` | Context builder: fixed instructions per task (inline completion, text-to-SQL, error fix), then the statement at the cursor, the error, the request, and the most relevant tables that fit a token budget; string literals and quoted error values masked by default, passwords always redacted; no I/O and deterministic, with a cache key over the sent text | `driver`, `schema`, `sqlscan` |
+| `internal/ai/prompt` | Context builder: fixed instructions per task (inline completion, text-to-SQL, error fix), then the statement at the cursor, the error, the request, and the most relevant tables that fit a token budget; string literals and quoted error values masked by default, passwords always redacted; prompt construction is deterministic and produces a cache key over the sent text. Suggestion validation uses the dialect parser and retries invalid output once | `ai`, `driver`, `schema`, `sqlparse`, `sqlscan` |
 | `internal/locks` | The locks one session holds or waits for (PostgreSQL `pg_locks`; MySQL `performance_schema.data_locks` and `metadata_locks`), read from a separate session, each with what it means | `driver` |
 | `internal/schema` | Tables, columns, PKs, and foreign keys from catalog queries, bounded by table/column limits; a versioned per-connection cache that the query path invalidates after DDL and at the end of a transaction | `driver` |
 | `internal/sqlparse` | Offline syntax check for the editor with each dialect's parser (`pg_query_go`, CGO and not on Windows; the TiDB parser for MySQL; SQLite's own parser on an empty in-memory database), and adapters that turn the PostgreSQL and MySQL trees into one shared syntax tree for lint and debug | `driver`, `sqlscan` |
@@ -106,14 +106,20 @@ Plex Sans and Mono are bundled from `@fontsource` so the app works offline.
 The advisor screen reads live statistics: its filters (search, statement
 type, minimum mean time and calls, sort, and the time window on MySQL) are
 sent to the backend, which applies them before the row limit. Its advice card
-stays empty until phase 3. The monitor and AI settings screens are typed
-against `Backend` methods whose Go side is not built yet (phases 3 and 5). The
-Wails backend rejects those calls with a "not available yet" message that the
-screens show; the dev mock (`src/api/mockFeatures.ts`) returns sample data. The monitor polls on an
+stays empty until phase 4. The monitor calls are reserved for phase 5. The
+Wails backend returns a "not available yet" message and the dev mock
+(`src/api/mockFeatures.ts`) returns sample data. The monitor polls on an
 interval owned by an effect, which stops it on pause, on another connection,
 and on unmount.
 
-The UI calls `app.App` methods through `Call.ByName` and receives rows as
+AI requests go through `app.API`. The app loads connection schema metadata,
+maps database errors to fixed categories, and uses the same prompt builder
+for previews and provider calls. API keys use the OS keychain. The app keeps
+up to 128 suggestions in memory and records request status, duration, and
+token counts in SQLite. Applying a suggestion edits the buffer. Running the
+query still goes through the regular execution path.
+
+The UI calls `app.API` methods through `Call.ByName` and receives rows as
 `query:page` events, sent only to the window that ran the query; other events
 go to every window. Each window is a separate UI over the one backend, so
 connections and open transactions are shared, and a window re-reads them when

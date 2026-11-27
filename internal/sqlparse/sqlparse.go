@@ -121,3 +121,8 @@ func near(tok string) string {
 	}
 	return fmt.Sprintf("syntax error at or near %q", tok)
 }
+
+// Supports reports whether the dialect has a syntax checker in this build.
+func Supports(d driver.Dialect) bool {
+	return d == driver.MySQL || d == driver.SQLite || d == driver.Postgres && postgresChecked
+}

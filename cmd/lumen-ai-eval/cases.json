@@ -1,0 +1,377 @@
+[
+  {
+    "name": "list-names",
+    "task": "textToSql",
+    "dialect": "postgres",
+    "pattern": "\\bselect\\s+(?:\\w+\\.)?name\\s+from\\b.*\\bcustomers\\b",
+    "request": "List customer names."
+  },
+  {
+    "name": "list-names",
+    "task": "textToSql",
+    "dialect": "mysql",
+    "pattern": "\\bselect\\s+(?:\\w+\\.)?name\\s+from\\b.*\\bcustomers\\b",
+    "request": "List customer names."
+  },
+  {
+    "name": "list-names",
+    "task": "textToSql",
+    "dialect": "sqlite",
+    "pattern": "\\bselect\\s+(?:\\w+\\.)?name\\s+from\\b.*\\bcustomers\\b",
+    "request": "List customer names."
+  },
+  {
+    "name": "count-orders",
+    "task": "textToSql",
+    "dialect": "postgres",
+    "pattern": "\\bcount\\s*\\(.*\\).*\\bfrom\\b.*\\borders\\b",
+    "request": "Count all orders."
+  },
+  {
+    "name": "count-orders",
+    "task": "textToSql",
+    "dialect": "mysql",
+    "pattern": "\\bcount\\s*\\(.*\\).*\\bfrom\\b.*\\borders\\b",
+    "request": "Count all orders."
+  },
+  {
+    "name": "count-orders",
+    "task": "textToSql",
+    "dialect": "sqlite",
+    "pattern": "\\bcount\\s*\\(.*\\).*\\bfrom\\b.*\\borders\\b",
+    "request": "Count all orders."
+  },
+  {
+    "name": "sorted-customers",
+    "task": "textToSql",
+    "dialect": "postgres",
+    "pattern": "\\bcustomers\\b.*\\border\\s+by\\b.*\\bname\\b.*\\bdesc\\b",
+    "request": "List customers sorted by name descending."
+  },
+  {
+    "name": "sorted-customers",
+    "task": "textToSql",
+    "dialect": "mysql",
+    "pattern": "\\bcustomers\\b.*\\border\\s+by\\b.*\\bname\\b.*\\bdesc\\b",
+    "request": "List customers sorted by name descending."
+  },
+  {
+    "name": "sorted-customers",
+    "task": "textToSql",
+    "dialect": "sqlite",
+    "pattern": "\\bcustomers\\b.*\\border\\s+by\\b.*\\bname\\b.*\\bdesc\\b",
+    "request": "List customers sorted by name descending."
+  },
+  {
+    "name": "sum-orders",
+    "task": "textToSql",
+    "dialect": "postgres",
+    "pattern": "\\bsum\\s*\\(.*\\btotal\\b.*\\).*\\bfrom\\b.*\\borders\\b",
+    "request": "Show total revenue from all orders."
+  },
+  {
+    "name": "sum-orders",
+    "task": "textToSql",
+    "dialect": "mysql",
+    "pattern": "\\bsum\\s*\\(.*\\btotal\\b.*\\).*\\bfrom\\b.*\\borders\\b",
+    "request": "Show total revenue from all orders."
+  },
+  {
+    "name": "sum-orders",
+    "task": "textToSql",
+    "dialect": "sqlite",
+    "pattern": "\\bsum\\s*\\(.*\\btotal\\b.*\\).*\\bfrom\\b.*\\borders\\b",
+    "request": "Show total revenue from all orders."
+  },
+  {
+    "name": "highest-order",
+    "task": "textToSql",
+    "dialect": "postgres",
+    "pattern": "\\borders\\b.*\\border\\s+by\\b.*\\btotal\\b.*\\bdesc\\b.*\\blimit\\s+1\\b",
+    "request": "Get one order with the highest total."
+  },
+  {
+    "name": "highest-order",
+    "task": "textToSql",
+    "dialect": "mysql",
+    "pattern": "\\borders\\b.*\\border\\s+by\\b.*\\btotal\\b.*\\bdesc\\b.*\\blimit\\s+1\\b",
+    "request": "Get one order with the highest total."
+  },
+  {
+    "name": "highest-order",
+    "task": "textToSql",
+    "dialect": "sqlite",
+    "pattern": "\\borders\\b.*\\border\\s+by\\b.*\\btotal\\b.*\\bdesc\\b.*\\blimit\\s+1\\b",
+    "request": "Get one order with the highest total."
+  },
+  {
+    "name": "distinct-status",
+    "task": "textToSql",
+    "dialect": "postgres",
+    "pattern": "\\b(?:distinct\\b.*\\bstatus\\b|status\\b.*\\bgroup\\s+by\\b.*\\bstatus\\b)",
+    "request": "List distinct order statuses."
+  },
+  {
+    "name": "distinct-status",
+    "task": "textToSql",
+    "dialect": "mysql",
+    "pattern": "\\b(?:distinct\\b.*\\bstatus\\b|status\\b.*\\bgroup\\s+by\\b.*\\bstatus\\b)",
+    "request": "List distinct order statuses."
+  },
+  {
+    "name": "distinct-status",
+    "task": "textToSql",
+    "dialect": "sqlite",
+    "pattern": "\\b(?:distinct\\b.*\\bstatus\\b|status\\b.*\\bgroup\\s+by\\b.*\\bstatus\\b)",
+    "request": "List distinct order statuses."
+  },
+  {
+    "name": "orders-per-customer",
+    "task": "textToSql",
+    "dialect": "postgres",
+    "pattern": "\\bcount\\s*\\(.*\\).*\\borders\\b.*\\bgroup\\s+by\\b.*\\bcustomer_id\\b",
+    "request": "Count orders grouped by customer ID."
+  },
+  {
+    "name": "orders-per-customer",
+    "task": "textToSql",
+    "dialect": "mysql",
+    "pattern": "\\bcount\\s*\\(.*\\).*\\borders\\b.*\\bgroup\\s+by\\b.*\\bcustomer_id\\b",
+    "request": "Count orders grouped by customer ID."
+  },
+  {
+    "name": "orders-per-customer",
+    "task": "textToSql",
+    "dialect": "sqlite",
+    "pattern": "\\bcount\\s*\\(.*\\).*\\borders\\b.*\\bgroup\\s+by\\b.*\\bcustomer_id\\b",
+    "request": "Count orders grouped by customer ID."
+  },
+  {
+    "name": "customer-orders",
+    "task": "textToSql",
+    "dialect": "postgres",
+    "pattern": "\\bjoin\\b.*\\bon\\b.*\\bcustomer_id\\b",
+    "request": "Join customers to orders by customer ID."
+  },
+  {
+    "name": "customer-orders",
+    "task": "textToSql",
+    "dialect": "mysql",
+    "pattern": "\\bjoin\\b.*\\bon\\b.*\\bcustomer_id\\b",
+    "request": "Join customers to orders by customer ID."
+  },
+  {
+    "name": "customer-orders",
+    "task": "textToSql",
+    "dialect": "sqlite",
+    "pattern": "\\bjoin\\b.*\\bon\\b.*\\bcustomer_id\\b",
+    "request": "Join customers to orders by customer ID."
+  },
+  {
+    "name": "misspelled-select",
+    "task": "fixError",
+    "dialect": "postgres",
+    "pattern": "\\bselect\\s+id\\s+from\\b.*\\bcustomers\\b",
+    "editor": "SELEC id FROM customers",
+    "error": "Syntax error near SELEC"
+  },
+  {
+    "name": "misspelled-select",
+    "task": "fixError",
+    "dialect": "mysql",
+    "pattern": "\\bselect\\s+id\\s+from\\b.*\\bcustomers\\b",
+    "editor": "SELEC id FROM customers",
+    "error": "Syntax error near SELEC"
+  },
+  {
+    "name": "misspelled-select",
+    "task": "fixError",
+    "dialect": "sqlite",
+    "pattern": "\\bselect\\s+id\\s+from\\b.*\\bcustomers\\b",
+    "editor": "SELEC id FROM customers",
+    "error": "Syntax error near SELEC"
+  },
+  {
+    "name": "missing-comma",
+    "task": "fixError",
+    "dialect": "postgres",
+    "pattern": "\\bid\\s*,\\s*name\\s*,\\s*email\\b",
+    "editor": "SELECT id name email FROM customers",
+    "error": "Syntax error near email",
+    "request": "Return id, name, and email."
+  },
+  {
+    "name": "missing-comma",
+    "task": "fixError",
+    "dialect": "mysql",
+    "pattern": "\\bid\\s*,\\s*name\\s*,\\s*email\\b",
+    "editor": "SELECT id name email FROM customers",
+    "error": "Syntax error near email",
+    "request": "Return id, name, and email."
+  },
+  {
+    "name": "missing-comma",
+    "task": "fixError",
+    "dialect": "sqlite",
+    "pattern": "\\bid\\s*,\\s*name\\s*,\\s*email\\b",
+    "editor": "SELECT id name email FROM customers",
+    "error": "Syntax error near email",
+    "request": "Return id, name, and email."
+  },
+  {
+    "name": "wrong-column",
+    "task": "fixError",
+    "dialect": "postgres",
+    "pattern": "\\bselect\\b.*\\btotal\\b.*\\bfrom\\b.*\\borders\\b",
+    "editor": "SELECT totl FROM orders",
+    "error": "Unknown column \"totl\""
+  },
+  {
+    "name": "wrong-column",
+    "task": "fixError",
+    "dialect": "mysql",
+    "pattern": "\\bselect\\b.*\\btotal\\b.*\\bfrom\\b.*\\borders\\b",
+    "editor": "SELECT totl FROM orders",
+    "error": "Unknown column \"totl\""
+  },
+  {
+    "name": "wrong-column",
+    "task": "fixError",
+    "dialect": "sqlite",
+    "pattern": "\\bselect\\b.*\\btotal\\b.*\\bfrom\\b.*\\borders\\b",
+    "editor": "SELECT totl FROM orders",
+    "error": "Unknown column \"totl\""
+  },
+  {
+    "name": "wrong-table",
+    "task": "fixError",
+    "dialect": "postgres",
+    "pattern": "\\bfrom\\b.*\\bcustomers\\b",
+    "editor": "SELECT id FROM customerz",
+    "error": "Unknown table \"customerz\""
+  },
+  {
+    "name": "wrong-table",
+    "task": "fixError",
+    "dialect": "mysql",
+    "pattern": "\\bfrom\\b.*\\bcustomers\\b",
+    "editor": "SELECT id FROM customerz",
+    "error": "Unknown table \"customerz\""
+  },
+  {
+    "name": "wrong-table",
+    "task": "fixError",
+    "dialect": "sqlite",
+    "pattern": "\\bfrom\\b.*\\bcustomers\\b",
+    "editor": "SELECT id FROM customerz",
+    "error": "Unknown table \"customerz\""
+  },
+  {
+    "name": "bad-order",
+    "task": "fixError",
+    "dialect": "postgres",
+    "pattern": "\\border\\s+by\\b.*\\bname\\b",
+    "editor": "SELECT id FROM customers ORDER name",
+    "error": "Syntax error near name"
+  },
+  {
+    "name": "bad-order",
+    "task": "fixError",
+    "dialect": "mysql",
+    "pattern": "\\border\\s+by\\b.*\\bname\\b",
+    "editor": "SELECT id FROM customers ORDER name",
+    "error": "Syntax error near name"
+  },
+  {
+    "name": "bad-order",
+    "task": "fixError",
+    "dialect": "sqlite",
+    "pattern": "\\border\\s+by\\b.*\\bname\\b",
+    "editor": "SELECT id FROM customers ORDER name",
+    "error": "Syntax error near name"
+  },
+  {
+    "name": "complete-from",
+    "task": "inline",
+    "dialect": "postgres",
+    "pattern": "\\bfrom\\s+orders\\b",
+    "editor": "SELECT total FROM orde|"
+  },
+  {
+    "name": "complete-from",
+    "task": "inline",
+    "dialect": "mysql",
+    "pattern": "\\bfrom\\s+orders\\b",
+    "editor": "SELECT total FROM orde|"
+  },
+  {
+    "name": "complete-from",
+    "task": "inline",
+    "dialect": "sqlite",
+    "pattern": "\\bfrom\\s+orders\\b",
+    "editor": "SELECT total FROM orde|"
+  },
+  {
+    "name": "complete-column",
+    "task": "inline",
+    "dialect": "postgres",
+    "pattern": "\\bselect\\s+customer_id\\s+from\\s+orders\\b",
+    "editor": "SELECT cust| FROM orders"
+  },
+  {
+    "name": "complete-column",
+    "task": "inline",
+    "dialect": "mysql",
+    "pattern": "\\bselect\\s+customer_id\\s+from\\s+orders\\b",
+    "editor": "SELECT cust| FROM orders"
+  },
+  {
+    "name": "complete-column",
+    "task": "inline",
+    "dialect": "sqlite",
+    "pattern": "\\bselect\\s+customer_id\\s+from\\s+orders\\b",
+    "editor": "SELECT cust| FROM orders"
+  },
+  {
+    "name": "complete-table",
+    "task": "inline",
+    "dialect": "postgres",
+    "pattern": "\\bfrom\\s+customers\\b",
+    "editor": "SELECT email FROM custo|"
+  },
+  {
+    "name": "complete-table",
+    "task": "inline",
+    "dialect": "mysql",
+    "pattern": "\\bfrom\\s+customers\\b",
+    "editor": "SELECT email FROM custo|"
+  },
+  {
+    "name": "complete-table",
+    "task": "inline",
+    "dialect": "sqlite",
+    "pattern": "\\bfrom\\s+customers\\b",
+    "editor": "SELECT email FROM custo|"
+  },
+  {
+    "name": "complete-order",
+    "task": "inline",
+    "dialect": "postgres",
+    "pattern": "\\border\\s+by\\s+name\\b",
+    "editor": "SELECT name FROM customers ORDER B| name"
+  },
+  {
+    "name": "complete-order",
+    "task": "inline",
+    "dialect": "mysql",
+    "pattern": "\\border\\s+by\\s+name\\b",
+    "editor": "SELECT name FROM customers ORDER B| name"
+  },
+  {
+    "name": "complete-order",
+    "task": "inline",
+    "dialect": "sqlite",
+    "pattern": "\\border\\s+by\\s+name\\b",
+    "editor": "SELECT name FROM customers ORDER B| name"
+  }
+]

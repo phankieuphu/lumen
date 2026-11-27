@@ -183,6 +183,41 @@ Delete the app (or `lumen.exe` / the unpacked folder; on Linux run
 too, delete the folder in the table above. Saved passwords appear in your
 keychain under the service name `lumen`.
 
+
+## AI assistance
+
+Open **AI settings**, choose Anthropic, an OpenAI-compatible server, or
+Ollama, and enter the model ID for each task you want to use. Remote
+provider keys are stored in the OS keychain. The OpenAI-compatible server
+URL should include the API prefix, such as `https://example.com/v1`.
+Ollama defaults to `http://localhost:11434`.
+
+In the query editor, choose **Text to SQL** or **Fix with AI** after a
+failed query. **Preview request** shows the prompt for the current editor
+context. Review the before-and-after SQL and choose **Apply to editor** to
+make the edit. Enable inline completion in settings to request suggestions
+as you type. Press Tab to accept the suggestion or Escape to dismiss it.
+
+AI requests include relevant schema metadata and editor context. Query
+result rows are excluded. Quoted editor literals are masked by default,
+and database errors are reduced to fixed categories. Free-form instructions
+go to the selected provider as entered. PostgreSQL AI suggestions require
+a build with the PostgreSQL parser, which currently excludes Windows and
+CGO-disabled builds.
+
+From a source checkout, validate the 51 synthetic evaluation fixtures
+offline or score a configured local model:
+
+```sh
+go run ./cmd/lumen-ai-eval -dry-run
+go run ./cmd/lumen-ai-eval -provider ollama -model YOUR_MODEL
+```
+
+For Anthropic or a keyed OpenAI-compatible endpoint, set
+`LUMEN_AI_API_KEY` in the evaluation process environment. The evaluator
+checks SQL syntax and expected SQL patterns without executing model output.
+It exits with an error if any case fails.
+
 ## Report a problem
 
 Open an issue at <https://github.com/phankieuphu/lumen/issues> with your

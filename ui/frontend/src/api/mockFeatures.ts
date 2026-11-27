@@ -1,14 +1,11 @@
 // In-memory advisor, monitor, and AI settings for `npm run dev:mock`.
 // Development builds only (see index.ts); the data is made up.
 import type {
-  AIPreview,
-  AIProvider,
   AISettings,
   AlertRule,
   Backend,
   Connection,
   DbSession,
-  PreviewLine,
   SlowQuery,
   SlowQueryDetail,
 } from "./types";
@@ -20,10 +17,11 @@ type FeatureMethods = Pick<
   | "monitorSnapshot"
   | "monitorEndSession"
   | "monitorSetAlert"
-  | "aiProviders"
   | "aiSettings"
   | "saveAISettings"
   | "aiPreview"
+  | "setAIKey"
+  | "aiSuggest"
 >;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -114,101 +112,7 @@ const slowQueries: SlowQueryDetail[] = [
 
 const summary = ({ plan: _p, advice: _a, noAdviceReason: _n, planSource: _s, ...q }: SlowQueryDetail): SlowQuery => q;
 
-const providers: AIProvider[] = [
-  {
-    id: "anthropic",
-    name: "Anthropic",
-    local: false,
-    note: "Claude models through the API",
-    ready: true,
-    keyNote: "API key saved in keychain",
-    models: ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"],
-  },
-  {
-    id: "openai",
-    name: "OpenAI-compatible",
-    local: false,
-    note: "Any server with the same API shape",
-    ready: false,
-    keyNote: "No API key yet",
-    models: ["[SMALL MODEL]", "[LARGE MODEL]"],
-  },
-  {
-    id: "ollama",
-    name: "Ollama",
-    local: true,
-    note: "Runs on this computer",
-    ready: true,
-    keyNote: "No key needed",
-    models: ["[LOCAL MODEL]"],
-  },
-];
 
-const destinations = {
-  anthropic: "Sent to the Anthropic API",
-  openai: "Sent to your OpenAI-compatible server",
-  ollama: "Stays on this computer",
-} as const;
-
-function previewLines(task: "advise" | "inline", s: AISettings): PreviewLine[] {
-  const L = (text: string, tone?: PreviewLine["tone"]): PreviewLine => (tone ? { text, tone } : { text });
-  if (task === "inline" && !s.inlineCompletion) {
-    return [L("Inline completion is off.", "muted"), L("No request is sent while you type.", "muted")];
-  }
-  const m = s.maskLiterals;
-  const query = [
-    L("SELECT c.id, c.name, SUM(o.total_amount) AS revenue"),
-    L("FROM orders o JOIN customers c ON c.id = o.customer_id"),
-    L(`WHERE o.created_at >= CURRENT_DATE - ${m ? "?" : "INTERVAL '30 days'"}`),
-    L(`  AND o.status = ${m ? "?" : "'paid'"}`),
-  ];
-  const schema = [
-    L("Schema (2 of 4 tables)", "head"),
-    L("orders(id bigint PK, customer_id bigint FK, status text,"),
-    L("       total_amount numeric, created_at timestamptz)"),
-    L("  indexes: orders_pkey(id), orders_created_at_idx(created_at)", "muted"),
-    L("customers(id bigint PK, name text, email text)"),
-    L("  indexes: customers_pkey(id)", "muted"),
-  ];
-  const sample = s.sampleRows
-    ? [
-        L(""),
-        L("Sample rows", "warn"),
-        L("orders: (88213, 1042, 'paid', 129.90, '2026-10-02 09:14:55+00')", "warn"),
-        L("customers: (1042, 'Blue Harbor Cafe', 'orders@blueharbor.example')", "warn"),
-      ]
-    : [];
-  if (task === "inline") {
-    return [
-      L("Task: inline_complete", "head"),
-      L("Dialect: postgres", "muted"),
-      L(""),
-      L("Text before the cursor", "head"),
-      ...query,
-      L("GROUP BY c.id, c.name"),
-      L("ORDER BY "),
-      L(""),
-      ...schema,
-      ...sample,
-    ];
-  }
-  return [
-    L("Task: advise_slow", "head"),
-    L("Dialect: postgres", "muted"),
-    L(""),
-    L("Query", "head"),
-    ...query,
-    L(`GROUP BY c.id, c.name ORDER BY revenue DESC LIMIT ${m ? "?" : "20"}`),
-    L(""),
-    ...schema,
-    L(""),
-    L("Plan", "head"),
-    L("Limit > Sort > HashAggregate > Hash Join"),
-    L("  > Seq Scan on orders (71% of cost)"),
-    L("  > Seq Scan on customers (2% of cost)"),
-    ...sample,
-  ];
-}
 
 /** A smooth, bounded random walk, so charts look like real samples. */
 function walk(n: number, start: number, step: number, min: number, max: number): number[] {
@@ -232,8 +136,8 @@ export function createMockFeatures(conns: () => readonly Connection[]): FeatureM
   ];
   let settings: AISettings = {
     provider: "anthropic",
-    models: { inline: "claude-haiku-5-5", textToSql: "claude-haiku-5-5", fixError: "claude-sonnet-5-5", advise: "claude-sonnet-5-5" },
-    sampleRows: false,
+    models: { inline: "mock", textToSql: "mock", fixError: "mock" },
+    baseUrl: "",
     maskLiterals: true,
     inlineCompletion: true,
   };
@@ -321,16 +225,17 @@ export function createMockFeatures(conns: () => readonly Connection[]): FeatureM
       if (!enabled) rule.firing = false;
     },
 
-    aiProviders: async () => providers,
     aiSettings: async () => settings,
     async saveAISettings(next) {
       await sleep(100);
       settings = next;
       return settings;
     },
-    async aiPreview(task, s): Promise<AIPreview> {
-      const p = providers.find((x) => x.id === s.provider) ?? providers[0]!;
-      return { destination: destinations[p.id], local: p.local, lines: previewLines(task, s) };
+    setAIKey: async () => {},
+    aiPreview: async (input) => input.editor,
+    async aiSuggest(input, signal) {
+      signal.throwIfAborted();
+      return input.task === "inline" ? "" : "SELECT id, name FROM customers;";
     },
   };
 }

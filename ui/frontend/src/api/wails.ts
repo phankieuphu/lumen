@@ -24,7 +24,6 @@ const notYet = (feature: string, phase: number) => () =>
   Promise.reject(new Error(`${feature} is not available yet: it arrives in phase ${phase} of docs/plan.md.`));
 
 const monitor = notYet("The monitor", 5);
-const ai = notYet("AI", 3);
 
 export const wailsBackend: Backend = {
   listConnections: () => call("ListConnections"),
@@ -85,8 +84,19 @@ export const wailsBackend: Backend = {
   monitorEndSession: monitor,
   monitorSetAlert: monitor,
 
-  aiProviders: ai,
-  aiSettings: ai,
-  saveAISettings: ai,
-  aiPreview: ai,
+  aiSettings: () => call("AISettings"),
+  saveAISettings: (settings) => call("SaveAISettings", settings),
+  setAIKey: (provider, key) => call("SetAIKey", provider, key),
+  aiPreview: (input, settings) => call("AIPreview", input, settings),
+  async aiSuggest(input, signal) {
+    signal.throwIfAborted();
+    const request = Call.ByName(APP + "AISuggest", input);
+    const cancel = () => { void request.cancel(); };
+    signal.addEventListener("abort", cancel, { once: true });
+    try {
+      return (await request) as string;
+    } finally {
+      signal.removeEventListener("abort", cancel);
+    }
+  },
 };

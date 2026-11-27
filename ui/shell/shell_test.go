@@ -45,7 +45,7 @@ func TestAssetHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			assetHandler(tt.fs).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+			assetHandler(tt.fs).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 			if !strings.Contains(rec.Body.String(), tt.want) {
 				t.Fatalf("body %q does not contain %q", rec.Body.String(), tt.want)
 			}
