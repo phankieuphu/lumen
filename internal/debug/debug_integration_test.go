@@ -154,7 +154,7 @@ func run(t *testing.T, e engine) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var got []string
+		got := make([]string, 0, len(rep.Parts))
 		for _, p := range rep.Parts {
 			if p.Error != "" {
 				t.Errorf("%s: %s\n%s", p.Clause, p.Error, p.SQL)
